@@ -1,6 +1,6 @@
 # First DAG
 
-![DAG V1](Figures/DAG_V1.png)
+![DAG V1](../Figures/DAG_V1.png)
 
 I believe Age is a confounder, and I don't have enough justification for specifying a causal relationship involving sex or race/ethnicity
 
@@ -82,7 +82,7 @@ Could sex plausibly create a noncausal path between our exposure and outcome tha
 
 # Second DAG
 
-![DAG V2](Figures/DAG_V2.png)
+![DAG V2](../Figures/DAG_V2.png)
 
 Condition on $S=\{Age, Sex\}$
 

@@ -1,3 +1,11 @@
+## Basics
+
+Exposure: the characteristic whose relationship with the outcome we're interesed in
+
+* Primary causal variable
+
+Outcome: the resultant event we're studying
+
 ## Confounding Variables
 
 Could there be a varialbe related to someone's likelihood of having a pre-existing medical condition **AND independently** be related to their likelihood of hospitalization from COVID?
