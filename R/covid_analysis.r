@@ -191,3 +191,91 @@ round(
     prop.table(sex_outcome, margin = 1) * 100,
     1
 )
+
+#########
+# Adjusted Analysis
+#########
+
+adjusted_analysis <- analysis[
+    analysis$sex %in% c("Female", "Male"),
+]
+
+dim(adjusted_analysis)
+table(adjusted_analysis$sex)
+table(adjusted_analysis$age_group)
+
+# R can work directly with strings, but creating factors allows us to control the reference categories
+    # Important once coefficients appear
+
+# Encode variables for regression
+adjusted_analysis$hospitalized <- factor(
+    adjusted_analysis$hosp_yn,
+    level#########s = c("No", "Yes")
+)
+
+adjusted_analysis$medcond <- factor(
+    adjusted_analysis$medcond_yn,
+    levels = c("No", "Yes")
+)
+
+adjusted_analysis$sex_factor <- factor(
+    adjusted_analysis$sex,
+    levels = c("Female", "Male")
+)
+
+adjusted_analysis$age_factor <- factor(
+    adjusted_analysis$age_group,
+    levels = c(
+        "0 - 9 Years",
+        "10 - 19 Years",
+        "20 - 29 Years",
+        "30 - 39 Years",
+        "40 - 49 Years",
+        "50 - 59 Years",
+        "60 - 69 Years",
+        "70 - 79 Years",
+        "80+ Years"
+    )
+)
+
+levels(adjusted_analysis$hospitalized)
+levels(adjusted_analysis$medcond)
+levels(adjusted_analysis$sex_factor)
+levels(adjusted_analysis$age_factor)
+
+table(adjusted_analysis$hospitalized)
+table(adjusted_analysis$medcond)
+table(adjusted_analysis$sex_factor)
+table(adjusted_analysis$age_factor)
+
+#########
+# Logistic regression model
+    # Gives us log-odds and not risk-ratio!!
+#########
+
+logistic_model <- glm(
+    hospitalized ~ medcond + age_factor + sex_factor,
+    data = adjusted_analysis,
+    family = binomial(link = "logit")
+)
+
+# Summary Columns
+    # Estimate: coefficient for variable (\beta value)
+    # Std. Error: estimated samipling uncertainty in that coefficient
+    # z value: estimate / std. error
+    # Pr(>|z|): two-sided p-value for the null
+
+# Intercept: corresponds to someone in every reference category
+    # medcond = No, age = 0-9, sex = Female
+
+# Summary Values
+    # Null Deviance: describes fit for intercept-only model
+    # Residual Deviance: describes fit after adding predictors
+    # AIC: useful for comparing models under appropriate circumstances
+    # Number of Fisher Scoring Iterations: how many iterations undtil optimization converged
+
+# RR_{crude} \neq OR_{adjusted}
+summary(logistic_model)
+
+# Transform every coefficient from log-odds differences into odds ratios
+exp(coef(logistic_model))

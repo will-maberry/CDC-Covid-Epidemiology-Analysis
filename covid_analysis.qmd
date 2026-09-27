@@ -5,7 +5,7 @@ format: html
 
 # Study Data
 
-This study uses 10,000 samples of reported COVID-19 cases restricted to the early pre-vaccine study period from March 15 through December 10, 2020.
+This study uses a 10,000-record sample of reported COVID-19 cases restricted to the early pre-vaccine study period from March 15 through December 10, 2020.
 
 ```{r}
 # Load COVID-19 surveillance sample
@@ -21,9 +21,9 @@ head(covid)
 
 # Analytic Cohort
 
-The analysis is restricted to cases with known exposure and outcome status. Exposure is defined by `medcond_yn`, indicating whether a pre-existing medical condition was reported. The outcome is defined by `hosp_yn`, indicating a hospitalization.
+The analysis is restricted to cases with known exposure and outcome status. Exposure is defined by `medcond_yn`, indicating whether a pre-existing medical condition was reported. The outcome is defined by `hosp_yn`, indicating a hospitalization was reported.
 
-The record label set is {`Yes`, `No`, `Unknown`, `Missing`}. Only `Yes` and `No` records for either the exposure or outcome are kept for the complete-case analysis.
+`medcond_yn` and `hosp_yn` are coded as {`Yes`, `No`, `Unknown`, `Missing`}. Only `Yes` and `No` records for either the exposure or outcome are kept for the complete-case analysis.
 
 ```{r}
 analysis <- covid[
@@ -117,7 +117,7 @@ c(
 )
 ```
 
-The crude risk ratio was 9.86 (95% CI: 6.72-14.47).
+The crude risk ratio was 9.86 (95% CI: 6.72--14.47).
 
 ## 95% Confidence Interval for Risk Difference
 
@@ -151,7 +151,7 @@ c(
 )
 ```
 
-The crude risk difference was 31.7 percentage points (95% CI: 27.9-35.4 percentage points).
+The crude risk difference was 31.7 percentage points (95% CI: 27.9--35.4 percentage points).
 
 These estimates are crude and unadjusted. These confidence intervals treat observations as independent.
 
@@ -234,3 +234,100 @@ round(
 ```
 
 The row percentages describe hospitalization status within each sex group, $P(Y\mid Sex)$.
+
+# Adjusted Analysis
+
+The adjusted analysis needs to account for the age and sex variables because they were identified as potential confounders. Two records in the complete-case analytic cohort have sex coded as `Missing` or `Unknown` and have been excluded from the analysis.
+
+```{r}
+adjusted_analysis <- analysis[
+    analysis$sex %in% c("Female", "Male"),
+]
+
+dim(adjusted_analysis)
+table(adjusted_analysis$sex)
+table(adjusted_analysis$age_group)
+
+# Encode variables for regression
+adjusted_analysis$hospitalized <- factor(
+    adjusted_analysis$hosp_yn,
+    levels = c("No", "Yes")
+)
+
+adjusted_analysis$medcond <- factor(
+    adjusted_analysis$medcond_yn,
+    levels = c("No", "Yes")
+)
+
+adjusted_analysis$sex_factor <- factor(
+    adjusted_analysis$sex,
+    levels = c("Female", "Male")
+)
+
+adjusted_analysis$age_factor <- factor(
+    adjusted_analysis$age_group,
+    levels = c(
+        "0 - 9 Years",
+        "10 - 19 Years",
+        "20 - 29 Years",
+        "30 - 39 Years",
+        "40 - 49 Years",
+        "50 - 59 Years",
+        "60 - 69 Years",
+        "70 - 79 Years",
+        "80+ Years"
+    )
+)
+
+levels(adjusted_analysis$hospitalized)
+levels(adjusted_analysis$medcond)
+levels(adjusted_analysis$sex_factor)
+levels(adjusted_analysis$age_factor)
+
+table(adjusted_analysis$hospitalized)
+table(adjusted_analysis$medcond)
+table(adjusted_analysis$sex_factor)
+table(adjusted_analysis$age_factor)
+```
+
+The resulting adjusted-analysis cohort contained 1,462 cases. Hospitalization was modeled with No as the reference category and Yes as the event. Reported pre-existing medical condition used No as the reference category, sex used Female as the reference category, and age group was modeled categorically with 0--9 Years as the reference category.
+
+## Logistic Regression
+
+A multivariable logistic regression model was fit with hospitalization as the outcome, reported pre-existing medical condition as the exposure, and age group and sex as prespecified adjustment variables.
+
+The logistic model estimates conditional log odds of hospitalization. Exponentiated coefficients therefore represent adjusted odds ratios rather than adjusted risk ratios.
+
+```{r}
+logistic_model <- glm(
+    hospitalized ~ medcond + age_factor + sex_factor,
+    data = adjusted_analysis,
+    family = binomial(link = "logit")
+)
+
+summary(logistic_model)
+```
+
+### Logistic regression limitations
+
+Our outcome is binary, so logistic regression is an obvious modeling choice. However, the logit link models the log odds of the outcome rather than the risk directoy. The fitted model can be written as:
+
+$$
+\operatorname{logit}(p_i) = \beta_0 + \beta_E E_i + \sum_{k=1}^{8}\beta_{A_k}A_{ik} + \beta_S S_i,
+$$
+
+where
+
+$$
+p_i = P(Y_i = 1 \mid E_i, A_i, S_i).
+$$
+
+Here, $E_i$ represents reported pre-existing medical condition stuatus, $A_{ik}$ represents the eight indicator variables from the non-reference age groups, and $S_i$ represents sex.
+
+The exposure coefficient $\beta_E$ is estimated on the log-odds scale. Exponentiating this coefficient gives the adjusted odds ratio:
+
+$$
+OR_{\text{adjusted}} = e^{\beta_E},
+$$
+
+rather than an adjusted risk ratio, which was selected as teh primary measure for this analysis. Consequently, the adjusted risk ratio will be estimated from the fitted logistic regression model using regression standardization.
