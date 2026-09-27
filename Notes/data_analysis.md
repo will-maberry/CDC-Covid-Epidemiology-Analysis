@@ -51,9 +51,9 @@ $RR_{crude}=9.86 (95\% CI: 6.72, 14.47)$
 
 * This is a huge value, and DAG said age was a confounder. Some portion of this crude association could reflect differences in the age distributionsof the exposed and unexposed groups
 
-* Frequentist Interpretation: if we repeatedly sampled under the same process and constructed confidence intervals using this procedure, approximately 95% of those intervals would contain the true risk ratio
+* Frequentist Interpretation: ~~tell us the 95% bounds for the observed risk of hospitalization among those with a reported pre-existing medical condition.~~ if we repeatedly sampled under the same process and constructed confidence intervals using this procedure, approximately 95% of those intervals would contain the true risk ratio
 
-* The 95% CI excludes the null value of 1, providing evidence that hospitalization risk differs between exposure groups in this complete-case analytic sample
+* The 95% CI excludes the null value of 1, ~~indicates that the features probably aren't independent~~ providing evidence that hospitalization risk differs between exposure groups in this complete-case analytic sample
 
 The observed hospitalization risk was 31.7 percentage points higher among cases with a reported pre-existing medical condition than among cases without one
 
