@@ -1,4 +1,7 @@
 __pycache__/
 .venv/
+.quarto/
+covid_analysis_files/
+
 
 covid_early_pandemic_sample_100k.csv

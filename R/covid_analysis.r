@@ -1,6 +1,10 @@
+#########
+# Dataset
+#########
+
 # Load COVID-19 surveillance sample
 covid <- read.csv(
-    "covid_early_pandemic_sample_10k.csv",
+    "Data/covid_early_pandemic_sample_10k.csv",
     stringsAsFactors = FALSE
 )
 
@@ -34,6 +38,10 @@ analysis <- covid[
 
 # Check analytic cohort size
 dim(analysis)
+
+#########
+# RR and RD
+#########
 
 # Create exposure-outcome 2x2 table
     # table( EXPOSURE, OUTCOME)
@@ -116,3 +124,70 @@ rd_upper <- risk_difference + (1.96 * se_rd)
 rd_lower
 risk_difference
 rd_upper
+
+#########
+# Descriptive Analysis
+#########
+
+# Exposure group sizes
+table(analysis$medcond_yn)
+
+# Age distribution by exposure
+age_exposure <- table(
+    analysis$age_group,
+    analysis$medcond_yn
+)
+
+age_exposure
+
+# Each column adds to 100%
+    # margin = 2 because we're taking each column as denominator
+    # Take each cell and divide by column total
+round(
+    prop.table(age_exposure, margin = 2) * 100,
+    1
+)
+
+# Sex distribution by exposure
+sex_exposure <- table(
+    analysis$sex,
+    analysis$medcond_yn
+)
+
+sex_exposure
+
+# Each column adds to 100%
+round(
+    prop.table(sex_exposure, margin = 2) * 100,
+    1
+)
+
+# Age distribution by outcome
+age_outcome <- table(
+    analysis$age_group,
+    analysis$hosp_yn
+)
+
+age_outcome
+
+# Each row adds to 100%
+    # margin = 1 because we're taking each row as denominator
+    # Take each cell and divide by row total
+round(
+    prop.table(age_outcome, margin = 1) * 100,
+    1
+)
+
+# Sex distribution by outcome
+sex_outcome <- table(
+    analysis$sex,
+    analysis$hosp_yn
+)
+
+sex_outcome
+
+# Each row adds to 100%
+round(
+    prop.table(sex_outcome, margin = 1) * 100,
+    1
+)

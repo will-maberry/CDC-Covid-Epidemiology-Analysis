@@ -1,0 +1,236 @@
+---
+title: "Early-Pandemic COVID-19 Epidemiologic Analysis"
+format: html
+---
+
+# Study Data
+
+This study uses 10,000 samples of reported COVID-19 cases restricted to the early pre-vaccine study period from March 15 through December 10, 2020.
+
+```{r}
+# Load COVID-19 surveillance sample
+covid <- read.csv(
+    "Data/covid_early_pandemic_sample_10k.csv",
+    stringsAsFactors = FALSE
+)
+
+dim(covid)
+names(covid)
+head(covid)
+```
+
+# Analytic Cohort
+
+The analysis is restricted to cases with known exposure and outcome status. Exposure is defined by `medcond_yn`, indicating whether a pre-existing medical condition was reported. The outcome is defined by `hosp_yn`, indicating a hospitalization.
+
+The record label set is {`Yes`, `No`, `Unknown`, `Missing`}. Only `Yes` and `No` records for either the exposure or outcome are kept for the complete-case analysis.
+
+```{r}
+analysis <- covid[
+    covid$medcond_yn %in% c("Yes", "No") &
+    covid$hosp_yn %in% c("Yes", "No"),
+]
+
+dim(analysis)
+```
+
+The resulting complete-case analytic cohort contains 1,464 cases.
+
+# Crude Association
+
+## Exposure-Outcome Table
+
+We first estimate the crude association between the exposure (reported pre-existing medical condition) and outcome (hospitalization).
+
+```{r}
+exposure_outcome <- table(
+    analysis$medcond_yn,
+    analysis$hosp_yn
+)
+
+exposure_outcome
+```
+
+The table's orientation lists exposure as rows and outcome as columns.
+
+## Risk Ratio and Risk Difference
+
+Hospitalization risk is estimated separately among exposed and
+unexposed cases.
+
+```{r}
+# Extract cells from exposure-outcome table
+a <- exposure_outcome["Yes", "Yes"]
+b <- exposure_outcome["Yes", "No"]
+c <- exposure_outcome["No", "Yes"]
+d <- exposure_outcome["No", "No"]
+
+# Hospitalization risks
+risk_exposed <- a / (a + b)
+risk_unexposed <- c / (c + d)
+
+# Effect measures
+risk_ratio <- risk_exposed / risk_unexposed
+risk_difference <- risk_exposed - risk_unexposed
+
+risk_exposed
+risk_unexposed
+risk_ratio
+risk_difference
+```
+
+Among cases in the complete-case analytic cohort, hospitalization risk was approximately 35.3% among those with a reported pre-existing medical condition and 3.6% among those without one. The crude risk ratio was 9.86, corresponding to an absolute risk difference of approximately 31.7 percentage points.
+
+## 95% Confidence Interval for Risk Ratio
+
+The conventional Wald confidence interval for the risk ratio is
+defined as:
+
+$$
+SE[\ln(RR)] =
+\sqrt{
+\frac{1}{a}
+-\frac{1}{a+b}
++\frac{1}{c}
+-\frac{1}{c+d}
+}
+$$
+
+```{r}
+se_log_rr <- sqrt(
+    (1 / a) - (1 / (a + b)) +
+    (1 / c) - (1 / (c + d))
+)
+
+log_rr <- log(risk_ratio)
+
+log_rr_lower <- log_rr - (1.96 * se_log_rr)
+log_rr_upper <- log_rr + (1.96 * se_log_rr)
+
+rr_lower <- exp(log_rr_lower)
+rr_upper <- exp(log_rr_upper)
+
+c(
+    RR = risk_ratio,
+    Lower_95_CI = rr_lower,
+    Upper_95_CI = rr_upper
+)
+```
+
+The crude risk ratio was 9.86 (95% CI: 6.72-14.47).
+
+## 95% Confidence Interval for Risk Difference
+
+For two independent proportions the standard error is defined as:
+
+$$
+SE(RD) =
+\sqrt{
+\frac{R_1(1-R_1)}{n_1}
++
+\frac{R_0(1-R_0)}{n_0}
+}
+$$
+
+```{r}
+n_exposed <- a + b
+n_unexposed <- c + d
+
+se_rd <- sqrt(
+    (risk_exposed * (1 - risk_exposed) / n_exposed) +
+    (risk_unexposed * (1 - risk_unexposed) / n_unexposed)
+)
+
+rd_lower <- risk_difference - (1.96 * se_rd)
+rd_upper <- risk_difference + (1.96 * se_rd)
+
+c(
+    RD = risk_difference,
+    Lower_95_CI = rd_lower,
+    Upper_95_CI = rd_upper
+)
+```
+
+The crude risk difference was 31.7 percentage points (95% CI: 27.9-35.4 percentage points).
+
+These estimates are crude and unadjusted. These confidence intervals treat observations as independent.
+
+# Descriptive Analysis
+
+Age and sex were hypothesized to be potential confounders based on the DAG and literature review. Consequently, their distributions are described according to both exposure and outcome status before adjusted analysis.
+
+## Age
+
+### Age by Exposure
+
+```{r}
+age_exposure <- table(
+    analysis$age_group,
+    analysis$medcond_yn
+)
+
+age_exposure
+
+round(
+    prop.table(age_exposure, margin = 2) * 100,
+    1
+)
+```
+
+The column percentages describe the age distribution within each exposure group, $P(Age\mid E)$.
+
+### Hospitalization by Age
+
+```{r}
+age_outcome <- table(
+    analysis$age_group,
+    analysis$hosp_yn
+)
+
+age_outcome
+
+round(
+    prop.table(age_outcome, margin = 1) * 100,
+    1
+)
+```
+
+The row percentages describe hospitalization status within each age group, $P(Y\mid Age)$.
+
+## Sex
+
+### Sex by Exposure
+
+```{r}
+sex_exposure <- table(
+    analysis$sex,
+    analysis$medcond_yn
+)
+
+sex_exposure
+
+round(
+    prop.table(sex_exposure, margin = 2) * 100,
+    1
+)
+```
+
+The column percentages describe the sex distribution within each exposure group, $P(Sex\mid E)$.
+
+### Hospitalization by Sex
+
+```{r}
+sex_outcome <- table(
+    analysis$sex,
+    analysis$hosp_yn
+)
+
+sex_outcome
+
+round(
+    prop.table(sex_outcome, margin = 1) * 100,
+    1
+)
+```
+
+The row percentages describe hospitalization status within each sex group, $P(Y\mid Sex)$.

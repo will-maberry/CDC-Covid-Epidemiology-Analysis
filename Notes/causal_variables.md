@@ -47,6 +47,18 @@ Confounder: a variable that is a common cause, or represents an open noncausal p
 
 Unmeasured Confounding: a backdoor path that exists in a DAG that can't be measured by the dataset
 
+Observed imbalance isn't the definition of confounding
+
+* DAG/lit review supports sex being a plausible confounder, so we shouldn't drop it from adjustment set just because it's balanced. Table only sell us sex probably won't explain nearly as much of the crude association as age will
+
+```
+            No  Yes
+  Female  48.7 46.1
+  Male    51.1 53.7
+  Missing  0.1  0.0
+  Unknown  0.0  0.1
+```
+
 ## Mediator Variables
 
 A $\to$ B $\to$ C could represetn a causal pathway from A $\to$ C, but the arrows in a causal directed acyclic graph (DAG) isn't the same as discrete math logic rules; it's a claim about a causal relationship
