@@ -1,0 +1,4 @@
+__pycache__/
+.venv/
+
+covid_early_pandemic_sample_100k.csv
