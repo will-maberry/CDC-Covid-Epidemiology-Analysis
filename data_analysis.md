@@ -30,3 +30,15 @@ Results will characterize the association between reported pre-existing medical 
 
 * Temporally restricted population dataset still too large
 * Randomly sample 100k samples from the temporally restricted dataset
+
+# Primary Data Findings
+
+* Sampled COVID-19 caess with $medcond\_yn \in \{Yes, No\}$ and $hosp\_yn \in \{Yes, No\}$ where $(n=1464)$
+* Exposure: reported pre-existing medical condition | Yes or No
+* Outcome: reported hospitalization | Yes or No
+* Primary Confounders: age group and sex, based on DAG and lit review
+* Calendar Time: needs consideration because there's strong temporal completeness in variation
+* Race/Ethnicity: probably shouldn't enter edjustment set and should follow DAG
+* Missing Data: primary complete-case analysis only has 14.64% of sampled cases have jointly ovserved $E$ and $Y$
+
+What effect measure are we trying to estimate (Risk Ratio, Risk Difference, or Odds Ratio)?
