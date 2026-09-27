@@ -19,9 +19,13 @@ $R_1 = P(Y=1 | E=1)=\frac{a}{a+b}$
 
 * $a + b$ is everyone exposed
 
+* Among those with $E=1$,what proportion had $Y=1$
+
 $R_0 = P(Y=1 | E=0)=\frac{c}{c+d}$
 
 * $c + d$ is everyone unexposed
+
+* Among those with $E=0$,what proportion had $Y=1$
 
 ## Risk Ratio
 
@@ -97,3 +101,19 @@ CI expresses the sampling uncertainty around our estimate under the assumptions 
 * Wider CI = less precision; narrower CI = greater precision
 
 * Whether a CI includes the null helps assess compatibility with no association, but the effect magnitude and precision should be interpreted
+
+## Logs
+
+$RR \in (0, \infty)$ and null value is 1 with a generally asymmetric sampling distribution. Instead of constructing CI directly around $RR$, work with $\ln(RR)$
+
+* Log transforms $(0,\infty) \to (-\infty, \infty)$
+
+$SE[\ln(RR)]=\sqrt{\frac{1}{a}-\frac{1}{a+b}+\frac{1}{c}-\frac{1}{c+d}}$
+
+* Estimates how much sampling variability we expect in our log risk ratio
+
+## Standard Error
+
+for two independent proportions, standard error of the risk difference is:
+
+$SE(RD)=\sqrt{\frac{R_1(1-R_1)}{n_1}+\frac{R_0(1-R_0)}{n_0}}$
