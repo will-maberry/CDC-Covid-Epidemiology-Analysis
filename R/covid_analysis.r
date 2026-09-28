@@ -210,7 +210,7 @@ table(adjusted_analysis$age_group)
 # Encode variables for regression
 adjusted_analysis$hospitalized <- factor(
     adjusted_analysis$hosp_yn,
-    level#########s = c("No", "Yes")
+    levels = c("No", "Yes")
 )
 
 adjusted_analysis$medcond <- factor(
