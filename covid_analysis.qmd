@@ -1,6 +1,16 @@
 ---
 title: "Early-Pandemic COVID-19 Epidemiologic Analysis"
-format: html
+author: "Will Maberry"
+date: today
+format:
+  html:
+    toc: true
+    theme: cosmo
+    code-fold: true
+    code-tools: true
+  pdf:
+    toc: true
+number-sections: true
 ---
 
 # Study Data
