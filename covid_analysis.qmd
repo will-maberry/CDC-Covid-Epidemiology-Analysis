@@ -13,9 +13,19 @@ format:
 number-sections: true
 ---
 
+```{r}
+library(ggplot2)
+```
+
 # Study Data
 
 This study uses a 10,000-record sample of reported COVID-19 cases restricted to the early pre-vaccine study period from March 15 through December 10, 2020.
+
+Data were downloaded from the [CDC COVID-19 Case Surveillance Public Use Data](https://data.cdc.gov/Case-Surveillance/COVID-19-Case-Surveillance-Public-Use-Data/vbim-akqf/about_data) through the CDC Socrata API.
+
+A reproducible computational subsample was constructed by randomly selecting 20 calendar dates within the study period using a fixed random seed (42). For each selected date, up to 500 records were retrieved from a contiguous block of surveillance records, with the starting position selected reproducibly using a date-specific random seed. Records were ordered by their internal Socrata identifier before retrieval.
+
+The resulting dataset contains 10,000 surveillance records and 12 variables. Since sampling was performed by date and contiguous record blocks rather than by simple random sampling across all eligible cases, the sample should not be considered representative of all reported COVID-19 cases during the study period.
 
 ```{r}
 # Load COVID-19 surveillance sample
@@ -25,15 +35,13 @@ covid <- read.csv(
 )
 
 dim(covid)
-names(covid)
-head(covid)
 ```
 
 # Analytic Cohort
 
 The analysis is restricted to cases with known exposure and outcome status. Exposure is defined by `medcond_yn`, indicating whether a pre-existing medical condition was reported. The outcome is defined by `hosp_yn`, indicating a hospitalization was reported.
 
-`medcond_yn` and `hosp_yn` are coded as {`Yes`, `No`, `Unknown`, `Missing`}. Only `Yes` and `No` records for either the exposure or outcome are kept for the complete-case analysis.
+`medcond_yn` and `hosp_yn` are coded as {`Yes`, `No`, `Unknown`, `Missing`}. Only `Yes` and `No` records for both variables were retained in the exposure-outcome complete-case cohort.
 
 ```{r}
 analysis <- covid[
@@ -44,7 +52,43 @@ analysis <- covid[
 dim(analysis)
 ```
 
-The resulting complete-case analytic cohort contains 1,464 cases.
+The resulting exposure-outcome complete-case cohort contained 1,464 cases (14.6% of the original sample). The remaining 8,536 cases (85.4%) were excluded because exposure status, hospitalization status, or both were not recorded as Yes or No.
+
+```{r}
+# Examine exposure and outcome reporting completeness
+table(covid$medcond_yn, useNA = "ifany")
+table(covid$hosp_yn, useNA = "ifany")
+
+# Examine joint reporting patterns
+table(
+    covid$medcond_yn,
+    covid$hosp_yn,
+    useNA = "ifany"
+)
+
+# Percentage with known medical-condition status
+known_medical_condition = mean(covid$medcond_yn %in% c("Yes", "No")) * 100
+
+# Percentage with known hospitalization status
+known_hospitalization = mean(covid$hosp_yn %in% c("Yes", "No")) * 100
+
+# Percentage with BOTH exposure and outcome known
+known_both = mean(
+    covid$medcond_yn %in% c("Yes", "No") &
+    covid$hosp_yn %in% c("Yes", "No")
+) * 100
+
+# Display reporting completeness
+round(c(
+    Known_Hospitalization = known_hospitalization,
+    Known_Medical_Condition = known_medical_condition,
+    Known_Medical_Condition_and_Hospitalization = known_both
+), 3)
+```
+
+Reporting completeness differed substantially between variables. Hospitalization status was known for `r round(known_hospitalization, 2)`% of sampled records, while pre-existing medical condition status was known for only `r round(known_medical_condition, 2)`%. Both variables were known for `r round(known_both, 2)`% of sampled records.
+
+Restricting the analysis to cases with known exposure and outcome status may introduce selection bias if the excluded cases differ systematically from the included cases. The potential for selection bias is a limitation of this analysis.
 
 # Crude Association
 
@@ -53,17 +97,27 @@ The resulting complete-case analytic cohort contains 1,464 cases.
 We first estimate the crude association between the exposure (reported pre-existing medical condition) and outcome (hospitalization).
 
 ```{r}
+# Construct 2x2 table with exposed/hospitalized first
 exposure_outcome <- table(
-    analysis$medcond_yn,
-    analysis$hosp_yn
+    Exposure = factor(
+        analysis$medcond_yn,
+        levels = c("Yes", "No")
+    ),
+    Hospitalized = factor(
+        analysis$hosp_yn,
+        levels = c("Yes", "No")
+    )
 )
 
-exposure_outcome
+# Display table with row and column totals
+addmargins(exposure_outcome)
 ```
 
-The table's orientation lists exposure as rows and outcome as columns.
-
 ## Risk Ratio and Risk Difference
+
+Here $a$ and $b$ represent hospitalized and non-hospitalized exposed cases, respectively. Similarly, $c$ and $d$ represent hospitalized and non-hospitalized unexposed cases, respectively. The crude risk ratio (RR) and risk difference (RD) are defined as:
+
+$$RR=\frac{a/(a+b)}{c/(c+d)} \qquad RD=\frac{a}{a+b}-\frac{c}{c+d}$$
 
 Hospitalization risk is estimated separately among exposed and
 unexposed cases.
@@ -83,197 +137,439 @@ risk_unexposed <- c / (c + d)
 risk_ratio <- risk_exposed / risk_unexposed
 risk_difference <- risk_exposed - risk_unexposed
 
-risk_exposed
-risk_unexposed
-risk_ratio
-risk_difference
+# Display hospitalization risks and effect measures
+round(c(
+    Risk_Exposed = risk_exposed,
+    Risk_Unexposed = risk_unexposed,
+    Risk_Ratio = risk_ratio,
+    Risk_Difference = risk_difference
+), 3)
 ```
 
-Among cases in the complete-case analytic cohort, hospitalization risk was approximately 35.3% among those with a reported pre-existing medical condition and 3.6% among those without one. The crude risk ratio was 9.86, corresponding to an absolute risk difference of approximately 31.7 percentage points.
+Among cases in the complete-case analytic cohort, hospitalization was reported for `r round(risk_exposed * 100, 1)`% of individuals with a reported pre-existing medical condition and `r round(risk_unexposed * 100, 1)`% of individuals without one. The crude risk ratio was `r round(risk_ratio, 2)`, indicating that the proportion hospitalized was approximately `r round(risk_ratio, 2)` times as high among individuals with reported medical conditions. The crude risk difference was `r round(risk_difference * 100, 1)` percentage points, representing the absolute difference in hospitalization proportions between the two groups.
 
 ## 95% Confidence Interval for Risk Ratio
 
-The conventional Wald confidence interval for the risk ratio is
-defined as:
+A 95% confidence interval (CI) for the crude risk ratio was calculated using hte normal approximation to the log-tranformed risk ratio. The standard error of the log risk ratio is estimated as:
 
 $$
 SE[\ln(RR)] =
 \sqrt{
-\frac{1}{a}
--\frac{1}{a+b}
-+\frac{1}{c}
--\frac{1}{c+d}
+    \frac{1}{a}
+    - \frac{1}{a+b}
+    + \frac{1}{c}
+    - \frac{1}{c+d}
 }
 $$
 
+The confidence interval is calculated on the logarithmic scale and then exponentiated to return to the risk-ratio scale.
+
+$$
+95\% CI_{RR} =
+\exp\left[
+    \ln(RR) \pm 1.96 \times SE[\ln(RR)]
+\right]
+$$
+
 ```{r}
+# Standard error of the log risk ratio
 se_log_rr <- sqrt(
     (1 / a) - (1 / (a + b)) +
     (1 / c) - (1 / (c + d))
 )
 
+# Calculate confidence limits on log scale
 log_rr <- log(risk_ratio)
 
 log_rr_lower <- log_rr - (1.96 * se_log_rr)
 log_rr_upper <- log_rr + (1.96 * se_log_rr)
 
+# Transform confidence limits back to risk-ratio scale
 rr_lower <- exp(log_rr_lower)
 rr_upper <- exp(log_rr_upper)
 
-c(
+round(c(
     RR = risk_ratio,
     Lower_95_CI = rr_lower,
     Upper_95_CI = rr_upper
-)
+), 3)
 ```
 
-The crude risk ratio was 9.86 (95% CI: 6.72--14.47).
+The crude risk ratio was `r round(risk_ratio, 2)` (95% CI: `r round(rr_lower, 2)`--`r round(rr_upper, 2)`). The confidence interval excludes the null value of 1, indicating evidence of a positive crude association between reported pre-existing medical condition and hospitalization.
 
 ## 95% Confidence Interval for Risk Difference
 
-For two independent proportions the standard error is defined as:
+A 95% confidence interval for the crude risk difference was calculated using the normal approximation for the difference between two independent proportions. The standard error is estimated as:
 
 $$
 SE(RD) =
 \sqrt{
-\frac{R_1(1-R_1)}{n_1}
-+
-\frac{R_0(1-R_0)}{n_0}
+    \frac{R_1(1-R_1)}{n_1}
+    + \frac{R_0(1-R_0)}{n_0}
 }
 $$
 
+Here, $R_1$ and $R_0$ represent the observed hospitalization proportions among exposed and unexposed cases, respectively, while $n_1$ and $n_0$ represent the corresponding group sizes.
+
+The confidence interval is calculated directly on the risk-difference scale:
+
+$$
+95\% CI_{RD} = RD \pm 1.96 \times SE(RD)
+$$
+
 ```{r}
+# Group sample sizes
 n_exposed <- a + b
 n_unexposed <- c + d
 
+# Standard error of risk difference
 se_rd <- sqrt(
     (risk_exposed * (1 - risk_exposed) / n_exposed) +
     (risk_unexposed * (1 - risk_unexposed) / n_unexposed)
 )
 
+# Calculate confidence limits
 rd_lower <- risk_difference - (1.96 * se_rd)
 rd_upper <- risk_difference + (1.96 * se_rd)
 
-c(
+round(c(
     RD = risk_difference,
     Lower_95_CI = rd_lower,
     Upper_95_CI = rd_upper
-)
+), 3)
 ```
 
-The crude risk difference was 31.7 percentage points (95% CI: 27.9--35.4 percentage points).
+The crude risk difference was `r round(risk_difference * 100, 1)` percentage points (95% CI: `r round(rd_lower * 100, 1)`--`r round(rd_upper * 100, 1)` percentage points). The confidence interval excludes the null value of 0, indicating evidence of a positive crude difference in hospitalization proportions between reported pre-existing medical condition and hospitalization.
 
-These estimates are crude and unadjusted. These confidence intervals treat observations as independent.
+These estimates describe crude, unadjusted associations and do not account for potential confounding by age or sex. Both confidence intervals were calculated using the normal approximation, which may be inaccurate for small sample sizes or extreme proportions.
 
 # Descriptive Analysis
 
-Age and sex were hypothesized to be potential confounders based on the DAG and literature review. Consequently, their distributions are described according to both exposure and outcome status before adjusted analysis.
+Age and sex were hypothesized to be potential confounders based on the directed acyclic graph (DAG) and prior literature review. Before fitting adjusted models, their distributions were examined across exposure groups, along with the observed proportion hospitalized within each age and sex category.
 
 ## Age
 
-### Age by Exposure
+### Age Distribution by Exposure
+
+The age distribution was examined separately among cases with and without reported pre-existing medical conditions.
 
 ```{r}
+# Age distribution by exposure status
 age_exposure <- table(
     analysis$age_group,
     analysis$medcond_yn
 )
 
+# Counts
 age_exposure
 
+# Column percentages: age distribution within each exposure group
 round(
     prop.table(age_exposure, margin = 2) * 100,
     1
 )
 ```
 
-The column percentages describe the age distribution within each exposure group, $P(Age\mid E)$.
+Column percentages represent the age distribution within each exposure group, $P(Age \mid E)$. Each exposure column sums to 100%.
+
+```{r}
+# Define age groups representing individuals aged 60+
+older_groups <- c(
+    "60 - 69 Years",
+    "70 - 79 Years",
+    "80+ Years"
+)
+
+# Calculate percentage aged 60+ within each exposure group
+older_percent <- colSums(
+    age_exposure[older_groups, , drop = FALSE]
+) / colSums(age_exposure) * 100
+
+round(older_percent, 1)
+```
+
+The age distribution differed substantially between exposure groups. Among cases with reported pre-existing medical conditions, `r round(older_percent["Yes"], 1)`% were aged 60 years or older, compared with `r round(older_percent["No"], 1)`% among cases without reported conditions. Older individuals were disproportionately represented in the exposed group, suggesting that age may contribute to the observed crude association between reported pre-existing medical condition and hospitalization.
+
+```{r}
+# Convert column percentages to a data frame for plotting
+age_exposure_df <- as.data.frame(
+    prop.table(age_exposure, margin = 2) * 100
+)
+
+names(age_exposure_df) <- c(
+    "Age",
+    "Medical_Condition",
+    "Percentage"
+)
+
+# Plot age distribution within each exposure group
+ggplot(
+    age_exposure_df,
+    aes(
+        x = Age,
+        y = Percentage,
+        fill = Medical_Condition
+    )
+) +
+    geom_col(position = "dodge") +
+    labs(
+        title = "Age Distribution by Medical-Condition Status",
+        x = "Age Group",
+        y = "Percentage Within Exposure Group",
+        fill = "Medical Condition"
+    ) +
+    theme_minimal() +
+    theme(
+        axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+```
 
 ### Hospitalization by Age
 
+The proportion hospitalized was calculated within each age group to examine whether observed hospitalization proportion varies by age.
+
 ```{r}
+# Hospitalization status by age group
 age_outcome <- table(
     analysis$age_group,
     analysis$hosp_yn
 )
 
+# Counts
 age_outcome
 
+# Row percentages: hospitalization status within each age group
 round(
     prop.table(age_outcome, margin = 1) * 100,
     1
 )
 ```
 
-The row percentages describe hospitalization status within each age group, $P(Y\mid Age)$.
+Row percentages represent hospitalization status within each age group, $P(Y \mid Age)$. Each age-group row sums to 100%.
+
+```{r}
+# Calculate percentage hospitalized within each age group
+age_hosp_percent <- prop.table(
+    age_outcome,
+    margin = 1
+)[, "Yes"] * 100
+
+round(age_hosp_percent, 1)
+```
+
+Hospitalization proportions varied substantially across age groups. Among cases aged 60–69 years, `r round(age_hosp_percent["60 - 69 Years"], 1)`% were hospitalized, compared with `r round(age_hosp_percent["20 - 29 Years"], 1)`% among cases aged 20–29 years. The proportion hospitalized among cases aged 80 years or older was `r round(age_hosp_percent["80+ Years"], 1)`%, indicating that the observed pattern did not increase consistently across all age categories. These findings suggest a strong descriptive association between age and hospitalization within the analytic cohort.
+
+```{r}
+# Convert hospitalization percentages into a data frame for plotting
+age_hosp_df <- data.frame(
+    Age = names(age_hosp_percent),
+    Percentage = as.numeric(age_hosp_percent)
+)
+
+# Plot hospitalization percentage within each age group
+ggplot(
+    age_hosp_df,
+    aes(
+        x = Age,
+        y = Percentage
+    )
+) +
+    geom_col(fill = "steelblue") +
+    labs(
+        title = "Hospitalization by Age Group",
+        x = "Age Group",
+        y = "Percentage Hospitalized"
+    ) +
+    theme_minimal() +
+    theme(
+        axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+```
 
 ## Sex
 
 ### Sex by Exposure
 
+The sex distribution was examined separately among cases with and without reported pre-existing medical conditions.
+
 ```{r}
+# Sex distribution by exposure status
 sex_exposure <- table(
     analysis$sex,
     analysis$medcond_yn
 )
 
+# Counts
 sex_exposure
 
+# Column percentages: sex distribution within each exposure group
 round(
     prop.table(sex_exposure, margin = 2) * 100,
     1
 )
 ```
 
-The column percentages describe the sex distribution within each exposure group, $P(Sex\mid E)$.
+Column percentages represent the sex distribution within each exposure group, $P(Sex \mid E)$. Each exposure column sums to 100%.
+
+```{r}
+# Calculate percentage of males within each exposure group
+male_percent <- prop.table(
+    sex_exposure,
+    margin = 2
+)["Male", ] * 100
+
+round(male_percent, 1)
+```
+
+The sex distribution was similar between exposure groups. Males accounted for `r round(male_percent["Yes"], 1)`% of cases with reported pre-existing medical conditions, compared with `r round(male_percent["No"], 1)`% of cases without reported conditions. These relatively small differences suggest that sex may contribute less to the crude exposure-outcome association than age, although this descriptive comparison alone does not establish the extent of confounding.
+
+```{r}
+# Convert column percentages to a data frame for plotting
+sex_exposure_df <- as.data.frame(
+    prop.table(sex_exposure, margin = 2) * 100
+)
+
+names(sex_exposure_df) <- c(
+    "Sex",
+    "Medical_Condition",
+    "Percentage"
+)
+
+# Plot sex distribution within each exposure group
+ggplot(
+    sex_exposure_df,
+    aes(
+        x = Sex,
+        y = Percentage,
+        fill = Medical_Condition
+    )
+) +
+    geom_col(position = "dodge") +
+    labs(
+        title = "Sex Distribution by Medical-Condition Status",
+        x = "Sex",
+        y = "Percentage Within Exposure Group",
+        fill = "Medical Condition"
+    ) +
+    theme_minimal()
+```
 
 ### Hospitalization by Sex
 
+The proportion hospitalized was calculated within each sex category to examine differences in hospitalization risk between males and females.
+
 ```{r}
+# Hospitalization status by sex
 sex_outcome <- table(
     analysis$sex,
     analysis$hosp_yn
 )
 
+# Counts
 sex_outcome
 
+# Row percentages: hospitalization status within each sex group
 round(
     prop.table(sex_outcome, margin = 1) * 100,
     1
 )
 ```
 
-The row percentages describe hospitalization status within each sex group, $P(Y\mid Sex)$.
+Row percentages represent hospitalization status within each sex category, $P(Y \mid Sex)$. Each sex row sums to 100%.
+
+```{r}
+# Calculate percentage hospitalized within each sex category
+sex_hosp_percent <- prop.table(
+    sex_outcome,
+    margin = 1
+)[, "Yes"] * 100
+
+round(sex_hosp_percent, 1)
+```
+
+Hospitalization proportions differed modestly between males and females. Among male cases, `r round(sex_hosp_percent["Male"], 1)`% were hospitalized, compared with `r round(sex_hosp_percent["Female"], 1)`% among female cases. These results suggest a relatively small descriptive association between sex and hospitalization within the analytic cohort.
+
+```{r}
+# Convert hospitalization percentages into a data frame for plotting
+sex_hosp_df <- data.frame(
+    Sex = names(sex_hosp_percent),
+    Percentage = as.numeric(sex_hosp_percent)
+)
+
+# Keep Female and Male categories for visualization
+sex_hosp_df <- subset(
+    sex_hosp_df,
+    Sex %in% c("Female", "Male")
+)
+
+# Plot hospitalization percentage within each sex category
+ggplot(
+    sex_hosp_df,
+    aes(
+        x = Sex,
+        y = Percentage
+    )
+) +
+    geom_col(fill = "steelblue") +
+    labs(
+        title = "Hospitalization by Sex",
+        x = "Sex",
+        y = "Percentage Hospitalized"
+    ) +
+    theme_minimal()
+```
+
+## Summary of Potential Confounders
+
+The descriptive comparisons were used to examine the relationships of age and sex with both reported pre-existing medical conditions and hospitalization. Differences in these distributions may contribute to the observed crude association.
+
+Age and sex were retained as adjustment variables based on the hypothesized causal structure and prior literature review rather than solely on the descriptive results. The following adjusted analysis examines the exposure-outcome association while accounting for these variables.
 
 # Adjusted Analysis
 
-The adjusted analysis needs to account for the age and sex variables because they were identified as potential confounders. Two records in the complete-case analytic cohort have sex coded as `Missing` or `Unknown` and have been excluded from the analysis.
+Age and sex were identified as potential confounders based on the hypothesized causal structure and prior literature review. To examine the association between reported pre-existing medical conditions and hospitalization while accounting for these variables, a multivariable logistic regression model was fitted.
+
+## Adjusted Analytic Cohort
+
+The adjusted analysis was restricted to cases with known exposure, outcome, age, and sex status. Two records in the exposure-outcome complete-case cohort had sex coded as `Missing` or `Unknown` and have been excluded.
 
 ```{r}
+# Restrict analysis to cases with recorded Female or Male sex
 adjusted_analysis <- analysis[
-    analysis$sex %in% c("Female", "Male"),
+    analysis$sex %in% c("Female", "Male") &
+    !is.na(analysis$age_group) &
+    analysis$age_group != "Missing" &
+    analysis$age_group != "Unknown",
 ]
 
-dim(adjusted_analysis)
-table(adjusted_analysis$sex)
-table(adjusted_analysis$age_group)
+# Display adjusted cohort size
+nrow(adjusted_analysis)
+```
 
-# Encode variables for regression
+The resulting adjusted-analysis cohort contained `r nrow(adjusted_analysis)` cases.
+
+The outcome, axposure, and adjustment variables were encoded as categorical factors to define their reference categories explicitly.
+
+```{r}
+# Hospitalization: No is the reference, Yes is the event
 adjusted_analysis$hospitalized <- factor(
     adjusted_analysis$hosp_yn,
     levels = c("No", "Yes")
 )
 
+# Medical condition: No is the reference
 adjusted_analysis$medcond <- factor(
     adjusted_analysis$medcond_yn,
     levels = c("No", "Yes")
 )
 
+# Sex: Female is the reference
 adjusted_analysis$sex_factor <- factor(
     adjusted_analysis$sex,
     levels = c("Female", "Male")
 )
 
+# Age: 0–9 years is the reference
 adjusted_analysis$age_factor <- factor(
     adjusted_analysis$age_group,
     levels = c(
@@ -289,41 +585,95 @@ adjusted_analysis$age_factor <- factor(
     )
 )
 
-levels(adjusted_analysis$hospitalized)
-levels(adjusted_analysis$medcond)
-levels(adjusted_analysis$sex_factor)
-levels(adjusted_analysis$age_factor)
+# Verify reference categories
+lapply(
+    adjusted_analysis[
+        c("hospitalized", "medcond", "age_factor", "sex_factor")
+    ],
+    levels
+)
 
-table(adjusted_analysis$hospitalized)
-table(adjusted_analysis$medcond)
-table(adjusted_analysis$sex_factor)
-table(adjusted_analysis$age_factor)
+# Verify that all model variables are complete
+colSums(is.na(
+    adjusted_analysis[
+        c("hospitalized", "medcond", "age_factor", "sex_factor")
+    ]
+))
 ```
 
-The resulting adjusted-analysis cohort contained 1,462 cases. Hospitalization was modeled with No as the reference category and Yes as the event. Reported pre-existing medical condition used No as the reference category, sex used Female as the reference category, and age group was modeled categorically with 0--9 Years as the reference category.
+Hospitalization was modeled with `Yes` as the event and `No` as the reference category. Reported pre-existing medical-condition status used `No` as the reference category. Sex used `Female` as the reference category, while age used `0–9 Years` as the reference group.
 
 ## Logistic Regression
 
-A multivariable logistic regression model was fit with hospitalization as the outcome, reported pre-existing medical condition as the exposure, and age group and sex as prespecified adjustment variables.
-
-The logistic model estimates conditional log odds of hospitalization. Exponentiated coefficients therefore represent adjusted odds ratios rather than adjusted risk ratios.
+A multivariable logistic regression model was fit with hospitalization as the binary outcome, reported pre-existing medical condition as the exposure, and age group and sex as adjustment variables.
 
 ```{r}
+# Fit logistic regression adjusting for age and sex
 logistic_model <- glm(
     hospitalized ~ medcond + age_factor + sex_factor,
     data = adjusted_analysis,
     family = binomial(link = "logit")
 )
 
+# Examine model coefficients and standard errors
 summary(logistic_model)
 ```
 
-### Logistic regression limitations
+Logistic regression estimates associates on the log-odds scale. As a result, the exposure coefficient must be exponentiated to obtain an adjusted odds ratio.
 
-Our outcome is binary, so logistic regression is an obvious modeling choice. However, the logit link models the log odds of the outcome rather than the risk directoy. The fitted model can be written as:
+```{r}
+# Extract the exposure coefficient (log odds ratio)
+exposure_beta <- coef(logistic_model)["medcondYes"]
+
+# Convert the coefficient to an adjusted odds ratio
+adjusted_or <- exp(exposure_beta)
+
+# Display adjusted odds ratio
+round(adjusted_or, 3)
+```
+
+A 95% confidence interval for the adjusted odds ratio was calculated using the standard error of the exposure coefficient. Confidence limits were calculated on the log-odds scale and exponentiated to return to the odds-ratio scale.
 
 $$
-\operatorname{logit}(p_i) = \beta_0 + \beta_E E_i + \sum_{k=1}^{8}\beta_{A_k}A_{ik} + \beta_S S_i,
+\exp\left[
+    \hat{\beta}_E \pm 1.96 \times SE(\hat{\beta}_E)
+\right]
+$$
+
+```{r}
+# Extract standard error of the exposure coefficient
+exposure_se <- summary(logistic_model)$coefficients[
+    "medcondYes",
+    "Std. Error"
+]
+
+# Calculate 95% confidence limits on the log-odds scale
+or_log_lower <- exposure_beta - 1.96 * exposure_se
+or_log_upper <- exposure_beta + 1.96 * exposure_se
+
+# Transform confidence limits to the odds-ratio scale
+or_lower <- exp(or_log_lower)
+or_upper <- exp(or_log_upper)
+
+# Display adjusted odds ratio and confidence interval
+round(
+    c(
+        Adjusted_OR = adjusted_or,
+        Lower_95_CI = or_lower,
+        Upper_95_CI = or_upper
+    ),
+    3
+)
+```
+
+The fitted model estimated an adjusted odds ratio of `r round(adjusted_or, 2)` (95% CI: `r round(or_lower, 2)`--`r round(or_upper, 2)`) for reported pre-existing medical conditions, controlling for age group and sex. This indicates that the estimated odds of hospitalization were higher among cases with reported pre-existing medical conditions than among cases without, after accounting for age and sex.
+
+### Interpretation of Logistic Regression
+
+Logistic regression models the log odds of a binary outcome as a function of the exposure and adjustment varialbes. The fitted model can be written as:
+
+$$
+\beta_0 + \beta_E E_i + \sum_{k=1}^{8}\beta_{A_k}A_{ik} + \beta_S S_i,
 $$
 
 where
@@ -332,12 +682,167 @@ $$
 p_i = P(Y_i = 1 \mid E_i, A_i, S_i).
 $$
 
-Here, $E_i$ represents reported pre-existing medical condition stuatus, $A_{ik}$ represents the eight indicator variables from the non-reference age groups, and $S_i$ represents sex.
+Here, $E_i$ represents reported pre-existing medical condition status, $A_{ik}$ represents the eight indicator variables from the non-reference age groups, and $S_i$ represents sex.
 
-The exposure coefficient $\beta_E$ is estimated on the log-odds scale. Exponentiating this coefficient gives the adjusted odds ratio:
+The exposure coefficient $\beta_E$ represents the difference in conditional log odds of hospitalization between cases with and without reported pre-existing medical conditions, holding age group and sex constant.
+
+Exponentiating this coefficient gives the adjusted odds ratio:
 
 $$
 OR_{\text{adjusted}} = e^{\beta_E},
 $$
 
-rather than an adjusted risk ratio, which was selected as teh primary measure for this analysis. Consequently, the adjusted risk ratio will be estimated from the fitted logistic regression model using regression standardization.
+This odds ratio compares hospitalization odds between exposure groups at the same values of age and sex. The model assumes that the exposure odds ratio is constant across age and sex categories
+
+## Adjusted Odds Ratio
+
+A 95% Wald confidence interval was calculated on the log-odds scale using the estimated coefficient and its standard error, then exponentiated to obtain confidence limits on the odds-ratio scale.
+
+$$
+OR_{\text{adjusted}} = e^{\hat{\beta}_E}
+$$
+
+$$
+95\% CI_{OR} =
+\exp(
+    \hat{\beta}_E \pm 1.96 \times SE(\hat{\beta}_E)
+)
+$$
+
+```{r}
+# Extract the exposure coefficient (log odds ratio)
+beta <- coef(logistic_model)["medcondYes"]
+
+# Exponentiate to obtain the adjusted odds ratio
+adjusted_or <- exp(beta)
+
+# Extract the coefficient variance and calculate its standard error
+se <- sqrt(vcov(logistic_model)["medcondYes", "medcondYes"])
+
+# Calculate 95% Wald confidence interval on the odds-ratio scale
+or_ci <- exp(beta + c(-1, 1) * 1.96 * se)
+
+# Display adjusted odds ratio and confidence interval
+round(
+    c(
+        Adjusted_OR = adjusted_or,
+        Lower_95_CI = or_ci[1],
+        Upper_95_CI = or_ci[2]
+    ),
+    3
+)
+```
+
+The fitted model estimate an adjusted odds ratio of `r round(adjusted_or, 2)` (95% CI: `r round(or_ci[1], 2)`--`r round(or_ci[2], 2)`) for reported pre-existing medical conditions, conditional on age group and sex. This indicates that the estimated odds of hospitalization were higher among cases with reported pre-existing medical conditions than among cases without reported conditions, after accounting for age and sex.
+
+## Regression Standardization
+
+Regression standardization was used to estimate hospitalization proportions for hte two exposure conditions while accounting for the age and sex distribution of the adjusted-analysis cohort.
+
+This approach uses the fitted logistic regression model to predict hospitalization probabilities under two hypothetical exposure scenarios: one in which every case is assigned reported pre-existing medical conditions and another in which every case is assigned no reported pre-existing medical conditions.
+
+Age and sex remain unchanged in both scenarios. This means the predicted probabilities are averages over the same obeserved distribution of age and sex, standardizing for these potential confounders.
+
+### Constructing Exposure Scenarios
+
+Two copies of the adjusted-analysis cohort were created. Pre-existing medical condition status was set to `Yes` for every case in one copy and `No` for every case in the other copy. Age and sex were left unchanged in both copies.
+
+```{r}
+# Create two copies of the adjusted cohort
+everyone_exposed <- adjusted_analysis
+everyone_unexposed <- adjusted_analysis
+
+# Assign reported medical conditions to every case
+everyone_exposed$medcond <- factor(
+    "Yes",
+    levels = levels(adjusted_analysis$medcond)
+)
+
+# Assign no reported medical conditions to every case
+everyone_unexposed$medcond <- factor(
+    "No",
+    levels = levels(adjusted_analysis$medcond)
+)
+```
+
+These scenarios are used to generate model-based predictions. They do not represent actual observed data, but rather hypothetical situations in which every case is assigned the same exposure status while retaining their observed age and sex.
+
+### Predicting Standardized Hospitalization Proportions
+
+The fitted logistic regression model was used to predict hospitalization probabilities for each case under both exposure scenarios.
+
+*Setting `type = "response"` returns the predicted probabilities rather than predicted log odds*
+
+```{r}
+# Predict hospitalization probabilities under each exposure scenario
+pred_exposed <- predict(
+    logistic_model,
+    newdata = everyone_exposed,
+    type = "response"
+)
+
+pred_unexposed <- predict(
+    logistic_model,
+    newdata = everyone_unexposed,
+    type = "response"
+)
+
+# Average predicted probabilities across the adjusted cohort
+adjusted_risk_exposed <- mean(pred_exposed)
+adjusted_risk_unexposed <- mean(pred_unexposed)
+
+# Display standardized hospitalization proportions
+round(
+    c(
+        Exposed = adjusted_risk_exposed,
+        Unexposed = adjusted_risk_unexposed
+    ),
+    4
+)
+```
+
+The standardized hospitalization proportion under reported pre-existing medical conditions was `r round(adjusted_risk_exposed * 100, 1)`%, compared with `r round(adjusted_risk_unexposed * 100, 1)`% under no reported medical conditions.
+
+These are model-based estimates averaged across the observed age and sex distribution of the adjusted-analysis cohort, rather than the directly observed hospitalization proportions within each exposure group.
+
+## Adjusted Risk Ratio and Risk Difference
+
+The standardized hospitalization proportions were used to calculate an adjusted risk ratio and risk difference.
+
+The adjusted risk ratio compares the two standardized proportions:
+
+$$
+RR_{\text{adjusted}} =
+\frac{\bar{p}{E=1}}{\bar{p}{E=0}}
+$$
+
+The adjusted risk difference represents their absolute difference:
+
+$$
+RD_{\text{adjusted}} =
+\bar{p}{E=1} - \bar{p}{E=0}
+$$
+
+Where $\bar{p}{E=1}$ and $\bar{p}{E=0}$ are the mean model-predicted hospitalizaiton probabilities under the exposed and unexposed scenarios, respectively.
+
+```{r}
+# Calculate adjusted risk ratio and risk difference
+adjusted_rr <- adjusted_risk_exposed / adjusted_risk_unexposed
+adjusted_rd <- adjusted_risk_exposed - adjusted_risk_unexposed
+
+# Display adjusted association measures
+round(
+    c(
+        Adjusted_RR = adjusted_rr,
+        Adjusted_RD = adjusted_rd,
+        Adjusted_RD_Percentage_Points = adjusted_rd * 100
+    ),
+    3
+)
+```
+
+The standardized adjusted risk ratio was `r round(adjusted_rr, 2)`, indicating that the model-estimated hospitalization proportion under reported pre-existing medical conditions was approximately `r round(adjusted_rr, 2)` times the proportion under no reported medical conditions, after standardizing to the same age and sex distribution.
+
+The adjusted risk difference was `r round(adjusted_rd * 100, 1)` percentage points, representing the absolute difference between the two standardized hospitalization proportions.
+
+These estimates describe model-adjusted associations within the analytic cohort. They do not establish a causal effect of pre-existing medical conditions on hospitalization. In particular, adjustment for age and sex does not eliminate potential residual confounding, selection bias associated with missing surveillance data, or limitations arising from the sampling procedure.

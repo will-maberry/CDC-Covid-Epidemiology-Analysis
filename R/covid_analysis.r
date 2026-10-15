@@ -253,8 +253,10 @@ table(adjusted_analysis$age_factor)
     # Gives us log-odds and not risk-ratio!!
 #########
 
+# Fit logistic regression model
+    # Estimates relationship between medical conditions and hospitalization, adjusting for age and sex
 logistic_model <- glm(
-    hospitalized ~ medcond + age_factor + sex_factor,
+    formula = hospitalized ~ medcond + age_factor + sex_factor,
     data = adjusted_analysis,
     family = binomial(link = "logit")
 )
@@ -279,3 +281,95 @@ summary(logistic_model)
 
 # Transform every coefficient from log-odds differences into odds ratios
 exp(coef(logistic_model))
+
+#########
+# Adjusted odds ratio for medical conditions
+    # Coefficient for medcondYes is the difference in log odds of hospitalization between individuals with and without reported medical conditions, adjusting for age and sex
+#########
+
+# Take exponent of coefficient for medcondYes for adjusted odds ratio
+    # Tells us odds of hospitalization, not probability of hospitalization
+adjusted_or <- exp(coef(logistic_model)["medcondYes"])
+
+#########
+# 95% Wald confidence interval
+#########
+
+# Store estimated log odds ratio
+beta <- coef(logistic_model)["medcondYes"]
+
+# vcov() returns variance-covariance matrix of model coefficients
+    # Diagonal elements are variances of each coefficient
+    # sqrt() takes square root of variance to get standard error
+se <- sqrt(vcov(logistic_model)["medcondYes", "medcondYes"])
+
+# 95% CI_{log-odds} = \beta \pm 1.96 * SE(\beta)
+    # exp() transforms log-odds back to odds ratio scale
+or_ci <- exp(beta + c(-1, 1) * 1.96 * se)
+
+c(
+    OR = adjusted_or,
+    Lower_95_CI = or_ci[1],
+    Upper_95_CI = or_ci[2]
+)
+
+#########
+# Regression Standardization
+    # Lets us use fitted logistic regression model to estimate adjusted risk difference and risk ratio directly
+#########
+
+# Create two copies of the adjusted cohort
+    # We DON'T change or remove age or sex counfounders
+everyone_exposed <- adjusted_analysis
+everyone_unexposed <- adjusted_analysis
+
+# Everyone has been exposed to pre-existing medical conditions
+    # factor() preserves original factor levels for prediction
+everyone_exposed$medcond <- factor(
+    "Yes",
+    levels = levels(adjusted_analysis$medcond)
+)
+
+# Everyone has not been exposed to pre-existing medical conditions
+everyone_unexposed$medcond <- factor(
+    "No",
+    levels = levels(adjusted_analysis$medcond)
+)
+
+#########
+# Predict Hospitalization Probabilities
+    # Predict with fitted logistic regression model for every exposed and everyone unexposed
+#########
+
+# Predict hospitalization probabilities
+pred_exposed <- predict(
+    object = logistic_model,
+    newdata = everyone_exposed,
+    # Convert log-odds to probabilities
+    type = "response"
+)
+
+pred_unexposed <- predict(
+    object = logistic_model,
+    newdata = everyone_unexposed,
+    # Convert log-odds to probabilities
+    type = "response"
+)
+
+# Average predicted risks
+    # Both scenarios use same individuals, so age and sex distribution are identical
+        # Standardizes for age and sex differences
+        # Doesn't guarantee eliminating residual or unmeasured confounding
+adjusted_risk_exposed <- mean(pred_exposed)
+adjusted_risk_unexposed <- mean(pred_unexposed)
+
+# Calculate adjusted risk ratio and risk difference
+adjusted_rr <- adjusted_risk_exposed / adjusted_risk_unexposed
+adjusted_rd <- adjusted_risk_exposed - adjusted_risk_unexposed
+
+c(
+    Adjusted_Risk_Exposed = adjusted_risk_exposed,
+    Adjusted_Risk_Unexposed = adjusted_risk_unexposed,
+    Adjusted_RR = adjusted_rr,
+    Adjusted_RD = adjusted_rd
+)

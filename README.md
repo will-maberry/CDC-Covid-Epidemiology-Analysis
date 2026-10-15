@@ -8,4 +8,4 @@ Rather than beginning with a statistical model, this analysis begins with the re
 
 With this study marking my first project of classical epidemiologic methods, I have published the notes produced throughout it. Incorrect initial assumptions have been kept with strikethroughs, followed by corrections and updated reasoning.
 
-This repository is meant to present a reporducible epidemiologic analysis and document my learning process along the way.
+This repository is meant to present a reproducible epidemiologic analysis and document my learning process along the way.
