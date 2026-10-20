@@ -21,9 +21,9 @@ library(ggplot2)
 
 This study uses a 10,000-record sample of reported COVID-19 cases restricted to the early pre-vaccine study period from March 15 through December 10, 2020.
 
-Data were downloaded from the [CDC COVID-19 Case Surveillance Public Use Data](https://data.cdc.gov/Case-Surveillance/COVID-19-Case-Surveillance-Public-Use-Data/vbim-akqf/about_data) through the CDC Socrata API.
+The dataset for this study was acquired from the [CDC COVID-19 Case Surveillance Public Use Data](https://data.cdc.gov/Case-Surveillance/COVID-19-Case-Surveillance-Public-Use-Data/vbim-akqf/about_data) through the CDC Socrata API.
 
-A reproducible computational subsample was constructed by randomly selecting 20 calendar dates within the study period using a fixed random seed (42). For each selected date, up to 500 records were retrieved from a contiguous block of surveillance records, with the starting position selected reproducibly using a date-specific random seed. Records were ordered by their internal Socrata identifier before retrieval.
+The study dataset is a computational subsample of and was constructed by randomly selecting 20 calendar dates within the study period using a fixed random seed (42). For each selected date, up to 500 records were retrieved from a contiguous block of surveillance records, with the starting position selected using a date-specific random seed. Records were ordered by their internal Socrata identifier before retrieval.
 
 The resulting dataset contains 10,000 surveillance records and 12 variables. Since sampling was performed by date and contiguous record blocks rather than by simple random sampling across all eligible cases, the sample should not be considered representative of all reported COVID-19 cases during the study period.
 
@@ -34,7 +34,9 @@ covid <- read.csv(
     stringsAsFactors = FALSE
 )
 
-dim(covid)
+cat(sprintf("Rows: %s | Columns: %s\n", 
+    format(nrow(covid), big.mark = ","), 
+    format(ncol(covid), big.mark = ",")))
 ```
 
 # Analytic Cohort
@@ -49,75 +51,102 @@ analysis <- covid[
     covid$hosp_yn %in% c("Yes", "No"),
 ]
 
-dim(analysis)
+cat(sprintf("Rows: %s | Columns: %s\n", 
+    format(nrow(analysis), big.mark = ","), 
+    format(ncol(analysis), big.mark = ",")))
 ```
 
-The resulting exposure-outcome complete-case cohort contained 1,464 cases (14.6% of the original sample). The remaining 8,536 cases (85.4%) were excluded because exposure status, hospitalization status, or both were not recorded as Yes or No.
+The resulting exposure-outcome complete-case cohort contained `r nrow(analysis)` cases (`r nrow(analysis) / nrow(covid) * 100`% of the original sample). The remaining `r nrow(covid) - nrow(analysis)` cases (`r (nrow(covid) - nrow(analysis)) / nrow(covid) * 100`%) were excluded because exposure status, hospitalization status, or both were not recorded as Yes or No.
 
 ```{r}
 # Examine exposure and outcome reporting completeness
-table(covid$medcond_yn, useNA = "ifany")
-table(covid$hosp_yn, useNA = "ifany")
+cat("Medical Condition Status (`medcond_yn`)\n")
+print(table(covid$medcond_yn, useNA = "ifany"))
+
+cat("Hospitalization Status (`hosp_yn`)\n")
+print(table(covid$hosp_yn, useNA = "ifany"))
 
 # Examine joint reporting patterns
-table(
-    covid$medcond_yn,
-    covid$hosp_yn,
-    useNA = "ifany"
+cat("Joint Reporting Distribution\n")
+print(
+    table(
+        covid$medcond_yn,
+        covid$hosp_yn,
+        useNA = "ifany"
+    )
 )
 
 # Percentage with known medical-condition status
-known_medical_condition = mean(covid$medcond_yn %in% c("Yes", "No")) * 100
+known_medical_condition <- mean(covid$medcond_yn %in% c("Yes", "No")) * 100
 
 # Percentage with known hospitalization status
-known_hospitalization = mean(covid$hosp_yn %in% c("Yes", "No")) * 100
+known_hospitalization <- mean(covid$hosp_yn %in% c("Yes", "No")) * 100
 
 # Percentage with BOTH exposure and outcome known
-known_both = mean(
+known_both <- mean(
     covid$medcond_yn %in% c("Yes", "No") &
     covid$hosp_yn %in% c("Yes", "No")
 ) * 100
 
+cat("Reporting Completeness (%)\n")
+
+completeness_report <- data.frame(
+    Metric = c(
+        "Known Hospitalization Status",
+        "Known Medical Condition Status",
+        "Both Exposure and Outcome Known"
+    ),
+    Percentage = sprintf("%.2f%%", c(
+        known_hospitalization,
+        known_medical_condition,
+        known_both
+    ))
+)
+
 # Display reporting completeness
-round(c(
-    Known_Hospitalization = known_hospitalization,
-    Known_Medical_Condition = known_medical_condition,
-    Known_Medical_Condition_and_Hospitalization = known_both
-), 3)
+print(completeness_report, row.names = FALSE)
 ```
 
 Reporting completeness differed substantially between variables. Hospitalization status was known for `r round(known_hospitalization, 2)`% of sampled records, while pre-existing medical condition status was known for only `r round(known_medical_condition, 2)`%. Both variables were known for `r round(known_both, 2)`% of sampled records.
 
-Restricting the analysis to cases with known exposure and outcome status may introduce selection bias if the excluded cases differ systematically from the included cases. The potential for selection bias is a limitation of this analysis.
+Restricting the analysis to cases with known exposure and outcome status may introduce selection bias if the excluded cases differ systematically from the included cases.
 
 # Crude Association
 
 ## Exposure-Outcome Table
 
-We first estimate the crude association between the exposure (reported pre-existing medical condition) and outcome (hospitalization).
+We first estimate the crude association between the exposure (reported pre-existing medical condition) and outcome (reported hospitalization).
 
 ```{r}
 # Construct 2x2 table with exposed/hospitalized first
 exposure_outcome <- table(
-    Exposure = factor(
+    `Medical Condition (Exposure)` = factor(
         analysis$medcond_yn,
         levels = c("Yes", "No")
     ),
-    Hospitalized = factor(
+    `Hospitalized (Outcome)` = factor(
         analysis$hosp_yn,
         levels = c("Yes", "No")
     )
 )
 
+cat("Contingency Table\n")
+
 # Display table with row and column totals
-addmargins(exposure_outcome)
+print(addmargins(
+    exposure_outcome,
+    FUN = list(Total = sum),
+    quiet = TRUE
+))
 ```
 
 ## Risk Ratio and Risk Difference
 
 Here $a$ and $b$ represent hospitalized and non-hospitalized exposed cases, respectively. Similarly, $c$ and $d$ represent hospitalized and non-hospitalized unexposed cases, respectively. The crude risk ratio (RR) and risk difference (RD) are defined as:
 
-$$RR=\frac{a/(a+b)}{c/(c+d)} \qquad RD=\frac{a}{a+b}-\frac{c}{c+d}$$
+$$
+RR=\frac{a/(a+b)}{c/(c+d)} \qquad RD=\frac{a}{a+b}-\frac{c}{c+d}
+$$
 
 Hospitalization risk is estimated separately among exposed and
 unexposed cases.
@@ -137,13 +166,25 @@ risk_unexposed <- c / (c + d)
 risk_ratio <- risk_exposed / risk_unexposed
 risk_difference <- risk_exposed - risk_unexposed
 
+cat("Risk Estimates & Measures of Effect\n")
+
 # Display hospitalization risks and effect measures
-round(c(
-    Risk_Exposed = risk_exposed,
-    Risk_Unexposed = risk_unexposed,
-    Risk_Ratio = risk_ratio,
-    Risk_Difference = risk_difference
-), 3)
+results <- data.frame(
+    Measure = c(
+        "Risk in Exposed (reported medical condition)",
+        "Risk in Unexposed (no reported medical condition)",
+        "Risk Ratio (RR)",
+        "Risk Difference (RD)"
+    ),
+    Value = c(
+        sprintf("%.3f (%.1f%%)", risk_exposed, risk_exposed * 100),
+        sprintf("%.3f (%.1f%%)", risk_unexposed, risk_unexposed * 100),
+        sprintf("%.3f", risk_ratio),
+        sprintf("%.3f (%+.1f pp)", risk_difference, risk_difference * 100)
+    )
+)
+
+print(results, row.names = FALSE)
 ```
 
 Among cases in the complete-case analytic cohort, hospitalization was reported for `r round(risk_exposed * 100, 1)`% of individuals with a reported pre-existing medical condition and `r round(risk_unexposed * 100, 1)`% of individuals without one. The crude risk ratio was `r round(risk_ratio, 2)`, indicating that the proportion hospitalized was approximately `r round(risk_ratio, 2)` times as high among individuals with reported medical conditions. The crude risk difference was `r round(risk_difference * 100, 1)` percentage points, representing the absolute difference in hospitalization proportions between the two groups.
@@ -188,11 +229,16 @@ log_rr_upper <- log_rr + (1.96 * se_log_rr)
 rr_lower <- exp(log_rr_lower)
 rr_upper <- exp(log_rr_upper)
 
-round(c(
-    RR = risk_ratio,
-    Lower_95_CI = rr_lower,
-    Upper_95_CI = rr_upper
-), 3)
+cat("Risk Ratio (95% Confidence Interval)\n")
+
+rr_summary <- data.frame(
+    Estimate = sprintf("%.3f", risk_ratio),
+    `95% CI Lower` = sprintf("%.3f", rr_lower),
+    `95% CI Upper` = sprintf("%.3f", rr_upper),
+    check.names = FALSE
+)
+
+print(rr_summary, row.names = FALSE)
 ```
 
 The crude risk ratio was `r round(risk_ratio, 2)` (95% CI: `r round(rr_lower, 2)`--`r round(rr_upper, 2)`). The confidence interval excludes the null value of 1, indicating evidence of a positive crude association between reported pre-existing medical condition and hospitalization.
@@ -232,11 +278,26 @@ se_rd <- sqrt(
 rd_lower <- risk_difference - (1.96 * se_rd)
 rd_upper <- risk_difference + (1.96 * se_rd)
 
-round(c(
-    RD = risk_difference,
-    Lower_95_CI = rd_lower,
-    Upper_95_CI = rd_upper
-), 3)
+cat("Risk Difference (95% Confidence Interval)\n")
+
+rd_summary <- data.frame(
+  Scale = c("Proportion", "Percentage Points (pp)"),
+  Estimate = c(
+    sprintf("%+.3f", risk_difference),
+    sprintf("%+.2f pp", risk_difference * 100)
+  ),
+  `95% CI Lower` = c(
+    sprintf("%+.3f", rd_lower),
+    sprintf("%+.2f pp", rd_lower * 100)
+  ),
+  `95% CI Upper` = c(
+    sprintf("%+.3f", rd_upper),
+    sprintf("%+.2f pp", rd_upper * 100)
+  ),
+  check.names = FALSE
+)
+
+print(rd_summary, row.names = FALSE)
 ```
 
 The crude risk difference was `r round(risk_difference * 100, 1)` percentage points (95% CI: `r round(rd_lower * 100, 1)`--`r round(rd_upper * 100, 1)` percentage points). The confidence interval excludes the null value of 0, indicating evidence of a positive crude difference in hospitalization proportions between reported pre-existing medical condition and hospitalization.
@@ -256,36 +317,64 @@ The age distribution was examined separately among cases with and without report
 ```{r}
 # Age distribution by exposure status
 age_exposure <- table(
-    analysis$age_group,
-    analysis$medcond_yn
+    `Age Group` = analysis$age_group,
+    `Medical Condition` = analysis$medcond_yn
 )
 
-# Counts
-age_exposure
+# Calculate column percentages (within exposure group)
+age_exposure_prop <- prop.table(age_exposure, margin = 2) * 100
 
-# Column percentages: age distribution within each exposure group
-round(
-    prop.table(age_exposure, margin = 2) * 100,
-    1
+cat("Age Distribution by Exposure Status\n")
+
+cat("1. Case Counts (with Margins)\n")
+
+print(addmargins(
+  age_exposure,
+  margin = 1,
+  FUN = list(Total = sum),
+  quiet = TRUE
+))
+
+cat("2. Column Percentages (% within exposure group)\n")
+
+# Combine count and % into a single clean string: "n (pct%)"
+age_pct_formatted <- matrix(
+  sprintf("%.1f%%", age_exposure_prop),
+  nrow = nrow(age_exposure),
+  dimnames = dimnames(age_exposure)
 )
+
+print(age_pct_formatted, quote = FALSE)
 ```
 
 Column percentages represent the age distribution within each exposure group, $P(Age \mid E)$. Each exposure column sums to 100%.
 
 ```{r}
-# Define age groups representing individuals aged 60+
+# Age groups aged 60+
 older_groups <- c(
     "60 - 69 Years",
     "70 - 79 Years",
     "80+ Years"
 )
 
-# Calculate percentage aged 60+ within each exposure group
-older_percent <- colSums(
-    age_exposure[older_groups, , drop = FALSE]
-) / colSums(age_exposure) * 100
+# Case counts and totals
+n_older <- colSums(age_exposure[older_groups, , drop = FALSE])
+n_total <- colSums(age_exposure)
 
-round(older_percent, 1)
+# Percentage  aged 60+ in each exposure group
+older_percent <- (n_older / n_total) * 100
+
+cat("Proportion Aged 60+ by Exposure Status\n")
+
+older_summary <- data.frame(
+  `Medical Condition` = names(older_percent),
+  `Aged 60+ (n)` = format(n_older, big.mark = ","),
+  `Total (N)` = format(n_total, big.mark = ","),
+  `Percentage Aged 60+` = sprintf("%.1f%%", older_percent),
+  check.names = FALSE
+)
+
+print(older_summary, row.names = FALSE)
 ```
 
 The age distribution differed substantially between exposure groups. Among cases with reported pre-existing medical conditions, `r round(older_percent["Yes"], 1)`% were aged 60 years or older, compared with `r round(older_percent["No"], 1)`% among cases without reported conditions. Older individuals were disproportionately represented in the exposed group, suggesting that age may contribute to the observed crude association between reported pre-existing medical condition and hospitalization.
@@ -331,30 +420,51 @@ The proportion hospitalized was calculated within each age group to examine whet
 ```{r}
 # Hospitalization status by age group
 age_outcome <- table(
-    analysis$age_group,
-    analysis$hosp_yn
+    `Age Group` = analysis$age_group,
+    `Hospitalized` = analysis$hosp_yn
 )
-
-# Counts
-age_outcome
 
 # Row percentages: hospitalization status within each age group
-round(
-    prop.table(age_outcome, margin = 1) * 100,
-    1
+age_outcome_pct <- prop.table(age_outcome, margin = 1) * 100
+
+cat("Hosptialization Distribution by Age Group\n")
+
+cat("1. Case Counts (with Row Margins)\n")
+print(addmargins(
+  age_outcome,
+  margin = 2,
+  FUN = list(Total = sum),
+  quiet = TRUE
+))
+
+cat("\n2. Row Percentages (% within age group, summing across rows)\n")
+age_pct_formatted <- matrix(
+  sprintf("%.1f%%", age_outcome_pct),
+  nrow = nrow(age_outcome),
+  dimnames = dimnames(age_outcome)
 )
+print(age_pct_formatted, quote = FALSE)
 ```
 
 Row percentages represent hospitalization status within each age group, $P(Y \mid Age)$. Each age-group row sums to 100%.
 
 ```{r}
 # Calculate percentage hospitalized within each age group
-age_hosp_percent <- prop.table(
-    age_outcome,
-    margin = 1
-)[, "Yes"] * 100
+hosp_yes_count <- age_outcome[, "Yes"]
+total_in_age <- rowSums(age_outcome)
+age_hosp_percent <- (hosp_yes_count / total_in_age) * 100
 
-round(age_hosp_percent, 1)
+cat("Risk of Hospitalization by Age Group\n")
+
+hosp_risk_summary <- data.frame(
+  `Age Group` = names(age_hosp_percent),
+  `Hospitalized (n)` = format(hosp_yes_count, big.mark = ","),
+  `Total Cases (N)` = format(total_in_age, big.mark = ","),
+  `Hospitalization Risk` = sprintf("%.1f%%", age_hosp_percent),
+  check.names = FALSE
+)
+
+print(hosp_risk_summary, row.names = FALSE)
 ```
 
 Hospitalization proportions varied substantially across age groups. Among cases aged 60–69 years, `r round(age_hosp_percent["60 - 69 Years"], 1)`% were hospitalized, compared with `r round(age_hosp_percent["20 - 29 Years"], 1)`% among cases aged 20–29 years. The proportion hospitalized among cases aged 80 years or older was `r round(age_hosp_percent["80+ Years"], 1)`%, indicating that the observed pattern did not increase consistently across all age categories. These findings suggest a strong descriptive association between age and hospitalization within the analytic cohort.
