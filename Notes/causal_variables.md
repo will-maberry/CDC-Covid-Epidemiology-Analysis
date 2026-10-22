@@ -36,7 +36,7 @@ CONFOUNDER
 
 C is a common cause of E and Y
 
-May create/distort the observed E–Y association
+May create/distort the observed E--Y association
 
 Often something we want to account for
 ```

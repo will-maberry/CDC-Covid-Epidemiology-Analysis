@@ -58,23 +58,83 @@ cat(sprintf("Rows: %s | Columns: %s\n",
 
 The resulting exposure-outcome complete-case cohort contained `r nrow(analysis)` cases (`r nrow(analysis) / nrow(covid) * 100`% of the original sample). The remaining `r nrow(covid) - nrow(analysis)` cases (`r (nrow(covid) - nrow(analysis)) / nrow(covid) * 100`%) were excluded because exposure status, hospitalization status, or both were not recorded as Yes or No.
 
+## Medical Condition Reporting Patterns
+
 ```{r}
-# Examine exposure and outcome reporting completeness
-cat("Medical Condition Status (`medcond_yn`)\n")
-print(table(covid$medcond_yn, useNA = "ifany"))
+# Medical-condition reporting status
+covid_medcond_yn <- table(
+    covid$medcond_yn,
+    useNA = "ifany"
+)
 
-cat("Hospitalization Status (`hosp_yn`)\n")
-print(table(covid$hosp_yn, useNA = "ifany"))
-
-# Examine joint reporting patterns
-cat("Joint Reporting Distribution\n")
-print(
-    table(
-        covid$medcond_yn,
-        covid$hosp_yn,
-        useNA = "ifany"
+# Convert frequency table to a data frame
+medcond_reporting <- data.frame(
+    Status = names(covid_medcond_yn),
+    Count = as.integer(covid_medcond_yn),
+    Percentage = sprintf(
+        "%.2f%%",
+        100 * as.numeric(covid_medcond_yn) / sum(covid_medcond_yn)
     )
 )
+
+knitr::kable(
+    medcond_reporting,
+    caption = "Medical Condition Reporting Status",
+    align = c("l", "r", "r"),
+    booktabs = TRUE,
+    row.names = FALSE
+)
+```
+
+## Hospitalization Reporting Patterns
+
+
+```{r}
+# Hospitalization reporting status
+covid_hosp_yn <- table(
+    covid$hosp_yn,
+    useNA = "ifany"
+)
+
+# Convert frequency table to a data frame
+hosp_reporting <- data.frame(
+    Status = names(covid_hosp_yn),
+    Count = as.integer(covid_hosp_yn),
+    Percentage = sprintf(
+        "%.2f%%",
+        100 * as.numeric(covid_hosp_yn) / sum(covid_hosp_yn)
+    )
+)
+
+knitr::kable(
+    hosp_reporting,
+    caption = "Hospitalization Reporting Status",
+    align = c("l", "r", "r"),
+    booktabs = TRUE,
+    row.names = FALSE
+)
+```
+
+## Joint Reporting Patterns
+
+The joint distribution was examined to identify how frequently medical-condition and hospitalization status were reported together.
+
+```{r}
+# Examine joint reporting patterns
+covid_joint <- table(
+    covid$medcond_yn,
+    covid$hosp_yn,
+    useNA = "ifany"
+)
+
+knitr::kable(
+    covid_joint,
+    caption = "Joint Distribution of Medical Condition and Hospitalization Reporting Status",
+    align = c("l", rep("r", ncol(covid_joint))),
+    booktabs = TRUE,
+    row.names = TRUE
+)
+
 
 # Percentage with known medical-condition status
 known_medical_condition <- mean(covid$medcond_yn %in% c("Yes", "No")) * 100
@@ -87,8 +147,6 @@ known_both <- mean(
     covid$medcond_yn %in% c("Yes", "No") &
     covid$hosp_yn %in% c("Yes", "No")
 ) * 100
-
-cat("Reporting Completeness (%)\n")
 
 completeness_report <- data.frame(
     Metric = c(
@@ -103,8 +161,13 @@ completeness_report <- data.frame(
     ))
 )
 
-# Display reporting completeness
-print(completeness_report, row.names = FALSE)
+knitr::kable(
+    completeness_report,
+    caption = "Reporting Completeness",
+    align = c("l", rep("r", ncol(completeness_report) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
 Reporting completeness differed substantially between variables. Hospitalization status was known for `r round(known_hospitalization, 2)`% of sampled records, while pre-existing medical condition status was known for only `r round(known_medical_condition, 2)`%. Both variables were known for `r round(known_both, 2)`% of sampled records.
@@ -130,14 +193,13 @@ exposure_outcome <- table(
     )
 )
 
-cat("Contingency Table\n")
-
-# Display table with row and column totals
-print(addmargins(
+knitr::kable(
     exposure_outcome,
-    FUN = list(Total = sum),
-    quiet = TRUE
-))
+    caption = "Contingency Table",
+    align = c("l", rep("r", ncol(exposure_outcome) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
 ## Risk Ratio and Risk Difference
@@ -166,8 +228,6 @@ risk_unexposed <- c / (c + d)
 risk_ratio <- risk_exposed / risk_unexposed
 risk_difference <- risk_exposed - risk_unexposed
 
-cat("Risk Estimates & Measures of Effect\n")
-
 # Display hospitalization risks and effect measures
 results <- data.frame(
     Measure = c(
@@ -184,14 +244,20 @@ results <- data.frame(
     )
 )
 
-print(results, row.names = FALSE)
+knitr::kable(
+    results,
+    caption = "Risk Estimates & Measures of Effect",
+    align = c("l", rep("r", ncol(results) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
 Among cases in the complete-case analytic cohort, hospitalization was reported for `r round(risk_exposed * 100, 1)`% of individuals with a reported pre-existing medical condition and `r round(risk_unexposed * 100, 1)`% of individuals without one. The crude risk ratio was `r round(risk_ratio, 2)`, indicating that the proportion hospitalized was approximately `r round(risk_ratio, 2)` times as high among individuals with reported medical conditions. The crude risk difference was `r round(risk_difference * 100, 1)` percentage points, representing the absolute difference in hospitalization proportions between the two groups.
 
 ## 95% Confidence Interval for Risk Ratio
 
-A 95% confidence interval (CI) for the crude risk ratio was calculated using the normal approximation to the log-tranformed risk ratio. The standard error of the log risk ratio is estimated as:
+A 95% confidence interval (CI) for the crude risk ratio was calculated using the normal approximation to the log-transformed risk ratio. The standard error of the log risk ratio is estimated as:
 
 $$
 SE[\ln(RR)] =
@@ -229,8 +295,6 @@ log_rr_upper <- log_rr + (1.96 * se_log_rr)
 rr_lower <- exp(log_rr_lower)
 rr_upper <- exp(log_rr_upper)
 
-cat("Risk Ratio (95% Confidence Interval)\n")
-
 rr_summary <- data.frame(
     Estimate = sprintf("%.3f", risk_ratio),
     `95% CI Lower` = sprintf("%.3f", rr_lower),
@@ -238,7 +302,13 @@ rr_summary <- data.frame(
     check.names = FALSE
 )
 
-print(rr_summary, row.names = FALSE)
+knitr::kable(
+    rr_summary,
+    caption = "Risk Ratio (95% Confidence Interval)",
+    align = c("l", rep("r", ncol(rr_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
 The crude risk ratio was `r round(risk_ratio, 2)` (95% CI: `r round(rr_lower, 2)`--`r round(rr_upper, 2)`). The confidence interval excludes the null value of 1, indicating evidence of a positive crude association between reported pre-existing medical condition and hospitalization.
@@ -278,8 +348,6 @@ se_rd <- sqrt(
 rd_lower <- risk_difference - (1.96 * se_rd)
 rd_upper <- risk_difference + (1.96 * se_rd)
 
-cat("Risk Difference (95% Confidence Interval)\n")
-
 rd_summary <- data.frame(
   Scale = c("Proportion", "Percentage Points (pp)"),
   Estimate = c(
@@ -297,7 +365,13 @@ rd_summary <- data.frame(
   check.names = FALSE
 )
 
-print(rd_summary, row.names = FALSE)
+knitr::kable(
+    rd_summary,
+    caption = "Risk Difference (95% Confidence Interval)",
+    align = c("l", rep("r", ncol(rd_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
 The crude risk difference was `r round(risk_difference * 100, 1)` percentage points (95% CI: `r round(rd_lower * 100, 1)`--`r round(rd_upper * 100, 1)` percentage points). The confidence interval excludes the null value of 0, indicating evidence of a positive crude difference in hospitalization proportions between reported pre-existing medical condition and hospitalization.
@@ -326,16 +400,13 @@ age_exposure_prop <- prop.table(age_exposure, margin = 2) * 100
 
 cat("Age Distribution by Exposure Status\n")
 
-cat("1. Case Counts (with Margins)\n")
-
-print(addmargins(
-  age_exposure,
-  margin = 1,
-  FUN = list(Total = sum),
-  quiet = TRUE
-))
-
-cat("2. Column Percentages (% within exposure group)\n")
+knitr::kable(
+    age_exposure,
+    caption = "1. Case Counts (with Margins)",
+    align = c("l", rep("r", ncol(age_exposure) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 
 # Combine count and % into a single clean string: "n (pct%)"
 age_pct_formatted <- matrix(
@@ -344,7 +415,13 @@ age_pct_formatted <- matrix(
   dimnames = dimnames(age_exposure)
 )
 
-print(age_pct_formatted, quote = FALSE)
+knitr::kable(
+    age_pct_formatted,
+    caption = "2. Column Percentages (% within exposure group)",
+    align = c("l", rep("r", ncol(age_pct_formatted) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
 Column percentages represent the age distribution within each exposure group, $P(Age \mid E)$. Each exposure column sums to 100%.
@@ -364,8 +441,6 @@ n_total <- colSums(age_exposure)
 # Percentage  aged 60+ in each exposure group
 older_percent <- (n_older / n_total) * 100
 
-cat("Proportion Aged 60+ by Exposure Status\n")
-
 older_summary <- data.frame(
   `Medical Condition` = names(older_percent),
   `Aged 60+ (n)` = format(n_older, big.mark = ","),
@@ -374,7 +449,13 @@ older_summary <- data.frame(
   check.names = FALSE
 )
 
-print(older_summary, row.names = FALSE)
+knitr::kable(
+    older_summary,
+    caption = "Proportion Aged 60+ by Exposure Status",
+    align = c("l", rep("r", ncol(older_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
 The age distribution differed substantially between exposure groups. Among cases with reported pre-existing medical conditions, `r round(older_percent["Yes"], 1)`% were aged 60 years or older, compared with `r round(older_percent["No"], 1)`% among cases without reported conditions. Older individuals were disproportionately represented in the exposed group, suggesting that age may contribute to the observed crude association between reported pre-existing medical condition and hospitalization.
@@ -427,23 +508,29 @@ age_outcome <- table(
 # Row percentages: hospitalization status within each age group
 age_outcome_pct <- prop.table(age_outcome, margin = 1) * 100
 
-cat("Hosptialization Distribution by Age Group\n")
+cat("Hospitalization Distribution by Age Group\n")
 
-cat("1. Case Counts (with Row Margins)\n")
-print(addmargins(
-  age_outcome,
-  margin = 2,
-  FUN = list(Total = sum),
-  quiet = TRUE
-))
+knitr::kable(
+    age_outcome,
+    caption = "1. Case Counts (with Row Margins)",
+    align = c("l", rep("r", ncol(age_outcome) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 
-cat("\n2. Row Percentages (% within age group, summing across rows)\n")
 age_pct_formatted <- matrix(
   sprintf("%.1f%%", age_outcome_pct),
   nrow = nrow(age_outcome),
   dimnames = dimnames(age_outcome)
 )
-print(age_pct_formatted, quote = FALSE)
+
+knitr::kable(
+    age_pct_formatted,
+    caption = "2. Row Percentages (% within age group, summing across rows)",
+    align = c("l", rep("r", ncol(age_pct_formatted) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
 Row percentages represent hospitalization status within each age group, $P(Y \mid Age)$. Each age-group row sums to 100%.
@@ -454,8 +541,6 @@ hosp_yes_count <- age_outcome[, "Yes"]
 total_in_age <- rowSums(age_outcome)
 age_hosp_percent <- (hosp_yes_count / total_in_age) * 100
 
-cat("Risk of Hospitalization by Age Group\n")
-
 hosp_risk_summary <- data.frame(
   `Age Group` = names(age_hosp_percent),
   `Hospitalized (n)` = format(hosp_yes_count, big.mark = ","),
@@ -464,10 +549,16 @@ hosp_risk_summary <- data.frame(
   check.names = FALSE
 )
 
-print(hosp_risk_summary, row.names = FALSE)
+knitr::kable(
+    hosp_risk_summary,
+    caption = "Risk of Hospitalization by Age Group",
+    align = c("l", rep("r", ncol(hosp_risk_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
-Hospitalization proportions varied substantially across age groups. Among cases aged 60–69 years, `r round(age_hosp_percent["60 - 69 Years"], 1)`% were hospitalized, compared with `r round(age_hosp_percent["20 - 29 Years"], 1)`% among cases aged 20–29 years. The proportion hospitalized among cases aged 80 years or older was `r round(age_hosp_percent["80+ Years"], 1)`%, indicating that the observed pattern did not increase consistently across all age categories. These findings suggest a strong descriptive association between age and hospitalization within the analytic cohort.
+Hospitalization proportions varied substantially across age groups. Among cases aged 60--69 years, `r round(age_hosp_percent["60 - 69 Years"], 1)`% were hospitalized, compared with `r round(age_hosp_percent["20 - 29 Years"], 1)`% among cases aged 20--29 years. The proportion hospitalized among cases aged 80 years or older was `r round(age_hosp_percent["80+ Years"], 1)`%, indicating that the observed pattern did not increase consistently across all age categories. These findings suggest a strong descriptive association between age and hospitalization within the analytic cohort.
 
 ```{r}
 # Convert hospitalization percentages into a data frame for plotting
@@ -505,17 +596,36 @@ The sex distribution was examined separately among cases with and without report
 ```{r}
 # Sex distribution by exposure status
 sex_exposure <- table(
-    analysis$sex,
-    analysis$medcond_yn
+    `Sex` = analysis$sex,
+    `Medical Condition` = analysis$medcond_yn
 )
 
-# Counts
-sex_exposure
+# Calculate column percentages (within exposure group)
+sex_exposure_prop <- prop.table(sex_exposure, margin = 2) * 100
 
-# Column percentages: sex distribution within each exposure group
-round(
-    prop.table(sex_exposure, margin = 2) * 100,
-    1
+cat("Sex Distribution by Exposure Status\n")
+
+knitr::kable(
+    sex_exposure,
+    caption = "1. Case Counts (with Margins)",
+    align = c("l", rep("r", ncol(sex_exposure) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
+
+# Format percentages
+sex_pct_formatted <- matrix(
+    sprintf("%.1f%%", sex_exposure_prop),
+    nrow = nrow(sex_exposure),
+    dimnames = dimnames(sex_exposure)
+)
+
+knitr::kable(
+    sex_pct_formatted,
+    caption = "2. Column Percentages (% within exposure group)",
+    align = c("l", rep("r", ncol(sex_pct_formatted) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
 )
 ```
 
@@ -523,21 +633,36 @@ Column percentages represent the sex distribution within each exposure group, $P
 
 ```{r}
 # Calculate percentage of males within each exposure group
-male_percent <- prop.table(
-    sex_exposure,
-    margin = 2
-)["Male", ] * 100
+male_count <- sex_exposure["Male", ]
+total_by_exposure <- colSums(sex_exposure)
+male_percent <- (male_count / total_by_exposure) * 100
 
-round(male_percent, 1)
+male_summary <- data.frame(
+    `Medical Condition` = names(male_percent),
+    `Male (n)` = format(male_count, big.mark = ","),
+    `Total (N)` = format(total_by_exposure, big.mark = ","),
+    `Percentage Male` = sprintf("%.1f%%", male_percent),
+    check.names = FALSE
+)
+
+knitr::kable(
+    male_summary,
+    caption = "Proportion Male by Exposure Status",
+    align = c("l", rep("r", ncol(male_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
-The sex distribution was similar between exposure groups. Males accounted for `r round(male_percent["Yes"], 1)`% of cases with reported pre-existing medical conditions, compared with `r round(male_percent["No"], 1)`% of cases without reported conditions. These relatively small differences suggest that sex may contribute less to the crude exposure-outcome association than age, although this descriptive comparison alone does not establish the extent of confounding.
+The sex distribution was similar between exposure groups. Males accounted for `r round(male_percent["Yes"], 1)`% of cases with reported pre-existing medical conditions, compared with `r round(male_percent["No"], 1)`% of cases without reported conditions. These relatively small differences suggest that sex may contribute less to the crude exposure-outcome association than age.
 
 ```{r}
-# Convert column percentages to a data frame for plotting
+# Convert column percentages to dataframe for plotting
 sex_exposure_df <- as.data.frame(
     prop.table(sex_exposure, margin = 2) * 100
 )
+
+sex_exposure_df <- as.data.frame(sex_exposure_prop)
 
 names(sex_exposure_df) <- c(
     "Sex",
@@ -566,22 +691,41 @@ ggplot(
 
 ### Hospitalization by Sex
 
-The proportion hospitalized was calculated within each sex category to examine differences in hospitalization risk between males and females.
+The proportion hospitalized was calculated within each sex category to examine differences in hospitalization reports between males and females.
 
 ```{r}
 # Hospitalization status by sex
 sex_outcome <- table(
-    analysis$sex,
-    analysis$hosp_yn
+    `Sex` = analysis$sex,
+    `Hospitalized` = analysis$hosp_yn
 )
 
-# Counts
-sex_outcome
+# Calculate row percentages (within sex category)
+sex_outcome_pct <- prop.table(sex_outcome, margin = 1) * 100
 
-# Row percentages: hospitalization status within each sex group
-round(
-    prop.table(sex_outcome, margin = 1) * 100,
-    1
+cat("Hospitalization Distribution by Sex\n")
+
+knitr::kable(
+    sex_outcome,
+    caption = "1. Case Counts (with Row Margins)",
+    align = c("l", rep("r", ncol(sex_outcome) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
+
+# Format percentages for presentation
+sex_outcome_formatted <- matrix(
+    sprintf("%.1f%%", sex_outcome_pct),
+    nrow = nrow(sex_outcome),
+    dimnames = dimnames(sex_outcome)
+)
+
+knitr::kable(
+    sex_outcome_formatted,
+    caption = "2. Row Percentages (% within sex category)",
+    align = c("l", rep("r", ncol(sex_outcome_formatted) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
 )
 ```
 
@@ -589,18 +733,31 @@ Row percentages represent hospitalization status within each sex category, $P(Y 
 
 ```{r}
 # Calculate percentage hospitalized within each sex category
-sex_hosp_percent <- prop.table(
-    sex_outcome,
-    margin = 1
-)[, "Yes"] * 100
+hosp_yes_by_sex <- sex_outcome[, "Yes"]
+total_by_sex <- rowSums(sex_outcome)
+sex_hosp_percent <- (hosp_yes_by_sex / total_by_sex) * 100
 
-round(sex_hosp_percent, 1)
+sex_hosp_summary <- data.frame(
+    `Sex` = names(sex_hosp_percent),
+    `Hospitalized (n)` = format(hosp_yes_by_sex, big.mark = ","),
+    `Total Cases (N)` = format(total_by_sex, big.mark = ","),
+    `Hospitalization Proportion` = sprintf("%.1f%%", sex_hosp_percent),
+    check.names = FALSE
+)
+
+knitr::kable(
+    sex_hosp_summary,
+    caption = "Hospitalization Proportion by Sex",
+    align = c("l", rep("r", ncol(sex_hosp_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
-Hospitalization proportions differed modestly between males and females. Among male cases, `r round(sex_hosp_percent["Male"], 1)`% were hospitalized, compared with `r round(sex_hosp_percent["Female"], 1)`% among female cases. These results suggest a relatively small descriptive association between sex and hospitalization within the analytic cohort.
+Hospitalization proportions differed modestly between males and females. Among male cases, `r round(sex_hosp_percent["Male"], 1)`% were hospitalized, compared with `r round(sex_hosp_percent["Female"], 1)`% among female cases. This suggests a relatively small descriptive association between sex and hospitalization within the analytic cohort.
 
 ```{r}
-# Convert hospitalization percentages into a data frame for plotting
+# Convert hospitalization percentages into dataframe for plotting
 sex_hosp_df <- data.frame(
     Sex = names(sex_hosp_percent),
     Percentage = as.numeric(sex_hosp_percent)
@@ -641,24 +798,68 @@ Age and sex were identified as potential confounders based on the hypothesized c
 
 ## Adjusted Analytic Cohort
 
-The adjusted analysis was restricted to cases with known exposure, outcome, age, and sex status. Two records in the exposure-outcome complete-case cohort had sex coded as `Missing` or `Unknown` and have been excluded.
+The adjusted analysis was restricted to cases with known exposure, outcome, age, and sex status. Cases with sex recorded as `Missing` or `Unknown`, or without a valid age group, were excluded from the adjusted analytic cohort.
 
 ```{r}
-# Restrict analysis to cases with recorded Female or Male sex
+# Original exposure-outcome complete-case cohort
+n_initial <- nrow(analysis)
+
+# Restrict to valid age and sex categories
 adjusted_analysis <- analysis[
     analysis$sex %in% c("Female", "Male") &
     !is.na(analysis$age_group) &
-    analysis$age_group != "Missing" &
-    analysis$age_group != "Unknown",
+    analysis$age_group %in% c(
+        "0 - 9 Years",
+        "10 - 19 Years",
+        "20 - 29 Years",
+        "30 - 39 Years",
+        "40 - 49 Years",
+        "50 - 59 Years",
+        "60 - 69 Years",
+        "70 - 79 Years",
+        "80+ Years"
+    ),
+    ,
+    drop = FALSE
 ]
 
-# Display adjusted cohort size
-nrow(adjusted_analysis)
+# Calculate cohort retention
+n_adjusted <- nrow(adjusted_analysis)
+n_excluded <- n_initial - n_adjusted
+retention_pct <- (n_adjusted / n_initial) * 100
+
+cohort_summary <- data.frame(
+    `Cohort` = c(
+        "Exposure-Outcome Complete Cases",
+        "Excluded for Age or Sex",
+        "Adjusted Analytic Cohort"
+    ),
+    `Cases (n)` = format(
+        c(n_initial, n_excluded, n_adjusted),
+        big.mark = ","
+    ),
+    check.names = FALSE
+)
+
+knitr::kable(
+    cohort_summary,
+    caption = "Adjusted Analytic Cohort Summary",
+    align = c("l", rep("r", ncol(cohort_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
+
+cat(
+    "Retention Rate:",
+    sprintf("%.1f%%", retention_pct)
+)
 ```
 
-The resulting adjusted-analysis cohort contained `r nrow(adjusted_analysis)` cases.
+Of the `r format(n_initial, big.mark = ",")` cases in the exposure-outcome complete-case cohort, `r n_excluded` were excluded due to missing, unknown, or invalid age or sex information. The resulting adjusted analytic cohort contained `r format(n_adjusted, big.mark = ",")` cases, representing `r sprintf("%.1f", retention_pct)`% of the original complete-case cohort.
 
-The outcome, exposure, and adjustment variables were encoded as categorical factors to define their reference categories explicitly.
+### Variable Encoding and Reference Categories
+
+The outcome, exposure, and adjustment variables were encoded as categorical factors to define the reference categories used in the logistic regression model
 
 ```{r}
 # Hospitalization: No is the reference, Yes is the event
@@ -679,7 +880,7 @@ adjusted_analysis$sex_factor <- factor(
     levels = c("Female", "Male")
 )
 
-# Age: 0–9 years is the reference
+# Age: 0--9 years is the reference
 adjusted_analysis$age_factor <- factor(
     adjusted_analysis$age_group,
     levels = c(
@@ -695,27 +896,60 @@ adjusted_analysis$age_factor <- factor(
     )
 )
 
-# Verify reference categories
-lapply(
-    adjusted_analysis[
-        c("hospitalized", "medcond", "age_factor", "sex_factor")
-    ],
-    levels
+# Verify reference categories and factor levels
+model_variables <- adjusted_analysis[
+    c("hospitalized", "medcond", "age_factor", "sex_factor")
+]
+
+reference_summary <- data.frame(
+    `Variable` = names(model_variables),
+    `Reference Category` = vapply(
+        model_variables,
+        function(x) levels(x)[1],
+        character(1)
+    ),
+    `Number of Levels` = vapply(
+        model_variables,
+        nlevels,
+        integer(1)
+    ),
+    check.names = FALSE
 )
 
-# Verify that all model variables are complete
-colSums(is.na(
-    adjusted_analysis[
-        c("hospitalized", "medcond", "age_factor", "sex_factor")
-    ]
-))
+knitr::kable(
+    reference_summary,
+    caption = "Model Variable Reference Categories",
+    align = c("l", rep("r", ncol(reference_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
-Hospitalization was modeled with `Yes` as the event and `No` as the reference category. Reported pre-existing medical-condition status used `No` as the reference category. Sex used `Female` as the reference category, while age used `0–9 Years` as the reference group.
+Hospitalization was modeled with `Yes` as the event and `No` as the reference category. Reported pre-existing medical-condition status used `No` as the reference category. Sex used `Female` as the reference category, while age used `0--9 Years` as the reference group.
 
 ## Logistic Regression
 
-A multivariable logistic regression model was fit with hospitalization as the binary outcome, reported pre-existing medical condition as the exposure, and age group and sex as adjustment variables.
+A multivariable logistic regression model was fitted to examine the association between reported pre-existing medical conditions and hospitalization while adjusting for age group and sex. Hospitalization was modeled as a binary outcome, with medical-condition status as the primary exposure and age group and sex included as categorical covariates.
+
+### Model Specification
+
+The logistic regression model expresses the log-odds of hospitalization as a linear combination of the exposure and adjustment variables:
+
+$$
+\log(\frac{p_i}{1-p_i}) = \beta_0 + \beta_E E_i + \sum_{k=1}^{8}\beta{A_k}A_{ik}+\beta_S S_i,
+$$
+
+where
+
+$$
+p_i = P(Y_i = 1 \mid E_i, A_i, S_i).
+$$
+
+In the equation above, $Y_i$ indicates hospitalization for case $i$, $E_i$ represents reported pre-existing medical-condition status, $A_{ik}$ represents the eight indicator variables corresponding to non-reference age groups, and $S_i$ represents sex.
+
+The exposure coefficient $\beta_E$ represents the difference in conditional log-odds of hospitalization between cases with and without reported pre-existing medical conditions, holding age group and sex constant.
+
+### Model Estimation
 
 ```{r}
 # Fit logistic regression adjusting for age and sex
@@ -725,93 +959,107 @@ logistic_model <- glm(
     family = binomial(link = "logit")
 )
 
-# Examine model coefficients and standard errors
-summary(logistic_model)
+# Extract model coefficient summary
+model_summary <- summary(logistic_model)$coefficients
+
+# Construct formatted regression coefficient table
+coefficient_table <- data.frame(
+    `Term` = rownames(model_summary),
+    `Log-Odds Coefficient` = sprintf("%.3f", model_summary[, "Estimate"]),
+    `Standard Error` = sprintf("%.3f", model_summary[, "Std. Error"]),
+    `z-Statistic` = sprintf("%.3f", model_summary[, "z value"]),
+    `p Value` = format.pval(
+        model_summary[, "Pr(>|z|)"],
+        digits = 3,
+        eps = 0.001
+    ),
+    check.names = FALSE
+)
+
+knitr::kable(
+    coefficient_table,
+    caption = "Multivariable Logistic Regression Coefficients",
+    align = c("l", rep("r", ncol(coefficient_table) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
-Logistic regression estimates associations on the log-odds scale. As a result, the exposure coefficient must be exponentiated to obtain an adjusted odds ratio.
+The regression coefficients are estimated on the log-odds scale. Positive coefficients indicate higher conditional odds of hospitalization relative to the corresponding reference category, while negative coefficients indicate lower conditional odds. The coefficients for age group and sex describe associations conditional on the other variables included in the model.
+
+### Exposure Coefficient and Adjusted Odds Ratio
+
+
+The coefficient for reported pre-existing medical conditions was extracted from the fitted model. Exponentiating this coefficient converts the estimated log-odds ratio to an adjusted odds ratio (OR):
+
+$$
+OR_{\mathrm{adj}} = \exp(\hat{\beta}_E).
+$$
+
+A 95% Wald confidence interval was calculated using the standard error of the exposure coefficient. The confidence limits were first constructed on the log-odds scale and then exponentiated:
+
+$$
+CI_{95\%}(OR_{\mathrm{adj}})
+=
+\left[
+    \exp\left(\hat{\beta}_E - 1.96\,SE(\hat{\beta}_E)\right),
+    \exp\left(\hat{\beta}_E + 1.96\,SE(\hat{\beta}_E)\right)
+\right].
+$$
 
 ```{r}
-# Extract the exposure coefficient (log odds ratio)
-exposure_beta <- coef(logistic_model)["medcondYes"]
+# Identify exposure coefficient
+exposure_term <- "medcondYes"
 
-# Convert the coefficient to an adjusted odds ratio
+# Extract coefficient and standard error
+exposure_beta <- unname(
+    coef(logistic_model)[exposure_term]
+)
+
+exposure_se <- summary(logistic_model)$coefficients[
+    exposure_term,
+    "Std. Error"
+]
+
+# Calculate adjusted odds ratio
 adjusted_or <- exp(exposure_beta)
 
-# Display adjusted odds ratio
-round(adjusted_or, 3)
+# Calculate 95% Wald confidence interval
+or_ci_lower <- exp(exposure_beta - 1.96 * exposure_se)
+or_ci_upper <- exp(exposure_beta + 1.96 * exposure_se)
+
+or_summary <- data.frame(
+    `Measure` = "Adjusted OR",
+    `Log-Odds Coefficient` = sprintf("%.3f", exposure_beta),
+    `Standard Error` = sprintf("%.3f", exposure_se),
+    `Adjusted OR` = sprintf("%.3f", adjusted_or),
+    `95% CI Lower` = sprintf("%.3f", or_ci_lower),
+    `95% CI Upper` = sprintf("%.3f", or_ci_upper),
+    check.names = FALSE
+)
+
+knitr::kable(
+    or_summary,
+    caption = "Adjusted Association: Medical Conditions and Hospitalization",
+    align = c("l", rep("r", ncol(or_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
-
-A 95% confidence interval for the adjusted odds ratio was calculated using the standard error of the exposure coefficient. Confidence limits were calculated on the log-odds scale and exponentiated to return to the odds-ratio scale.
-
-$$
-\exp[
-    \hat{\beta}_E \pm 1.96 \times SE(\hat{\beta}_E)
-]
-$$
 
 ### Interpretation of Logistic Regression
 
-Logistic regression models the log odds of a binary outcome as a function of the exposure and adjustment varialbes. The fitted model can be written as:
+The estimated medical-condition coefficient was `r sprintf("%.3f", exposure_beta)` on the log-odds scale. Exponentiating this coefficient yielded an adjusted odds ratio of `r sprintf("%.2f", adjusted_or)` (95% CI: `r sprintf("%.2f", or_ci_lower)`--`r sprintf("%.2f", or_ci_upper)`).
 
-$$
-\beta_0 + \beta_E E_i + \sum_{k=1}^{8}\beta_{A_k}A_{ik} + \beta_S S_i,
-$$
-
-where
-
-$$
-p_i = P(Y_i = 1 \mid E_i, A_i, S_i).
-$$
-
-Here, $E_i$ represents reported pre-existing medical condition status, $A_{ik}$ represents the eight indicator variables from the non-reference age groups, and $S_i$ represents sex.
-
-The exposure coefficient $\beta_E$ represents the difference in conditional log odds of hospitalization between cases with and without reported pre-existing medical conditions, holding age group and sex constant.
-
-## Adjusted Odds Ratio
-
-A 95% Wald confidence interval was calculated on the log-odds scale using the estimated coefficient and its standard error, then exponentiated to obtain confidence limits on the odds-ratio scale.
-
-$$
-OR_{\text{adjusted}} = e^{\hat{\beta}_E}
-$$
-
-$$
-95\% CI_{OR} =
-\exp(
-    \hat{\beta}_E \pm 1.96 \times SE(\hat{\beta}_E)
-)
-$$
-
-```{r}
-# Extract the exposure coefficient (log odds ratio)
-beta <- coef(logistic_model)["medcondYes"]
-
-# Exponentiate to obtain the adjusted odds ratio
-adjusted_or <- exp(beta)
-
-# Extract the coefficient variance and calculate its standard error
-se <- sqrt(vcov(logistic_model)["medcondYes", "medcondYes"])
-
-# Calculate 95% Wald confidence interval on the odds-ratio scale
-or_ci <- exp(beta + c(-1, 1) * 1.96 * se)
-
-# Display adjusted odds ratio and confidence interval
-round(
-    c(
-        Adjusted_OR = adjusted_or,
-        Lower_95_CI = or_ci[1],
-        Upper_95_CI = or_ci[2]
-    ),
-    3
-)
-```
-
-The fitted model estimate an adjusted odds ratio of `r round(adjusted_or, 2)` (95% CI: `r round(or_ci[1], 2)`--`r round(or_ci[2], 2)`) for reported pre-existing medical conditions, conditional on age group and sex. This indicates that the estimated odds of hospitalization were higher among cases with reported pre-existing medical conditions than among cases without reported conditions, after accounting for age and sex.
+After accounting for age group and sex, cases with reported pre-existing medical conditions had approximately `r sprintf("%.2f", adjusted_or)` times the odds of hospitalization compared with cases without reported conditions.
 
 ## Regression Standardization
 
-Regression standardization was used to estimate hospitalization proportions for hte two exposure conditions while accounting for the age and sex distribution of the adjusted-analysis cohort. The fitted logistic regression model was used to predict hospitalization probabilities after setting medical-condition status to Yes for all cases and, separately, to No for all cases, while retaining each case's observed age and sex. Predictions were then averaged across the same cohort in both scenarios.
+Regression standardization was used to estimate hospitalization proportions for the two exposure scenarios while accounting for the age and sex distribution of the adjusted-analysis cohort.
+
+The fitted logistic regression model was used to predict hospitalization probabilities after setting reported pre-existing medical-condition status to `Yes` for every case and, separately, to `No` for every case. Each case's observed age group and sex were retained in both scenarios.
+
+The predicted probabilities were then averaged across the same analytic cohort, producing two hospitalization proportions standardized to a common age and sex distribution.
 
 ### Constructing Exposure Scenarios
 
@@ -824,24 +1072,60 @@ everyone_unexposed <- adjusted_analysis
 
 # Assign reported medical conditions to every case
 everyone_exposed$medcond <- factor(
-    "Yes",
+    rep("Yes", nrow(everyone_exposed)),
     levels = levels(adjusted_analysis$medcond)
 )
 
 # Assign no reported medical conditions to every case
 everyone_unexposed$medcond <- factor(
-    "No",
+    rep("No", nrow(everyone_unexposed)),
     levels = levels(adjusted_analysis$medcond)
+)
+
+# Summarize the two exposure scenarios
+scenario_summary <- data.frame(
+    `Scenario` = c(
+        "All Cases Exposed",
+        "All Cases Unexposed"
+    ),
+    `Medical Condition` = c("Yes", "No"),
+    `Cases (N)` = format(
+        rep(nrow(adjusted_analysis), 2),
+        big.mark = ","
+    ),
+    check.names = FALSE
+)
+
+knitr::kable(
+    scenario_summary,
+    caption = "Regression Standardization: Exposure Scenarios",
+    align = c("l", rep("r", ncol(scenario_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
 )
 ```
 
-These scenarios are used to generate model-based predictions. They do not represent actual observed data, but rather hypothetical situations in which every case is assigned the same exposure status while retaining their observed age and sex.
+Both scenarios contain `r format(nrow(adjusted_analysis), big.mark = ",")` cases with identical age and sex distributions. The only difference between the two datasets is the assigned medical-condition status. They do not represent actual observed data, but rather hypothetical situations in which every case is assigned the same exposure status while retaining their observed age and sex.
 
 ### Predicting Standardized Hospitalization Proportions
 
 The fitted logistic regression model was used to predict hospitalization probabilities for each case under both exposure scenarios.
 
-*Setting `type = "response"` returns the predicted probabilities rather than predicted log odds*
+*Setting `type = "response"` returns the predicted probabilities rather than predicted log-odds*
+
+For exposure status $e$, the standardized hospitalization proportion is calculated as:
+
+$$
+\hat{P}_{e}^{std}
+=
+\frac{1}{N}
+\sum_{i=1}^{N}
+\hat{P}(Y_i = 1 \mid E_i = e, A_i, S_i),
+$$
+
+where $N$ is the number of cases in the adjusted analytic cohort, $e$ denotes the assigned exposure status (`Yes` or `No`), and $A_i$ and $S_i$ represent the observed age group and sex of case $i$.
+
+Each prodicted porbability is obtained from the fitted logistic regression model and averaged across the same cohort
 
 ```{r}
 # Predict hospitalization probabilities under each exposure scenario
@@ -861,77 +1145,127 @@ pred_unexposed <- predict(
 adjusted_risk_exposed <- mean(pred_exposed)
 adjusted_risk_unexposed <- mean(pred_unexposed)
 
-# Display standardized hospitalization proportions
-round(
-    c(
-        Exposed = adjusted_risk_exposed,
-        Unexposed = adjusted_risk_unexposed
+# Summarize standardized hospitalization proportions
+standardized_risk_summary <- data.frame(
+    `Exposure Scenario` = c(
+        "Reported MediCond",
+        "No Reported MedCond"
     ),
-    4
+    `Cases (N)` = format(
+        rep(nrow(adjusted_analysis), 2),
+        big.mark = ","
+    ),
+    `Standardized Proportion` = sprintf(
+        "%.4f",
+        c(adjusted_risk_exposed, adjusted_risk_unexposed)
+    ),
+    `Standardized Percentage` = sprintf(
+        "%.1f%%",
+        c(adjusted_risk_exposed, adjusted_risk_unexposed) * 100
+    ),
+    check.names = FALSE
+)
+
+knitr::kable(
+    standardized_risk_summary,
+    caption = "Regression-Standardized Hospitalization Proportions",
+    align = c("l", rep("r", ncol(standardized_risk_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
 )
 ```
 
 The standardized hospitalization proportion under reported pre-existing medical conditions was `r round(adjusted_risk_exposed * 100, 1)`%, compared with `r round(adjusted_risk_unexposed * 100, 1)`% under no reported medical conditions.
 
-These are model-based estimates averaged across the observed age and sex distribution of the adjusted-analysis cohort, rather than the directly observed hospitalization proportions within each exposure group.
+These are model-based estimates averaged across the observed age and sex distribution of the adjusted-analysis cohort, rather than the directly observed hospitalization proportions within each exposure group. Unlike the crude hospitalization proportions, which compare the observed exposure groups with their potentially different demographic compositions, regression standardization evaluates both exposure scenarios using the same age and sex distribution.
 
 ## Adjusted Risk Ratio and Risk Difference
 
-The standardized hospitalization proportions were used to calculate an adjusted risk ratio and risk difference.
+The regression-standardized hospitalization proportions were used to calculate two measures of adjusted association: the risk ratio (RR) and risk difference (RD). Both measures compare model-predicted hospitalization proportions under the two exposure scenarios, standardized to the same age and sex distribution.
 
-The adjusted risk ratio compares the two standardized proportions:
-
-$$
-RR_{\text{adjusted}} =
-\frac{\bar{p}{E=1}}{\bar{p}{E=0}}
-$$
-
-The adjusted risk difference represents their absolute difference:
+The adjusted risk ratio compares the relative difference between the standardized hospitalization proportions:
 
 $$
-RD_{\text{adjusted}} =
-\bar{p}{E=1} - \bar{p}{E=0}
+RR_{\text{adjusted}} = \frac{\bar{p}{E=1}}{\bar{p}{E=0}},
 $$
 
-Where $\bar{p}{E=1}$ and $\bar{p}{E=0}$ are the mean model-predicted hospitalizaiton probabilities under the exposed and unexposed scenarios, respectively.
+where $\bar{p}_{E=1}$ and $\bar{p}_{E=0}$ represent the mean model-predicted hospitalization probabilities under reported pre-existing medical conditions and no reported medical conditions, respectively.
+
+The adjusted risk difference expresses the absolute difference between these proportions:
+
+$$_
+RD_{\text{adjusted}} = \bar{p}_{E=1} - \bar{p}_{E=0}.
+$$
+
+Unlike the risk ratio, which is expressed as a relative measure, the risk difference can be multiplied by 100 and interpreted in percentage points.
+
+### Estimation of Adjusted Association Measures
 
 ```{r}
 # Calculate adjusted risk ratio and risk difference
 adjusted_rr <- adjusted_risk_exposed / adjusted_risk_unexposed
 adjusted_rd <- adjusted_risk_exposed - adjusted_risk_unexposed
 
-# Display adjusted association measures
-round(
-    c(
-        Adjusted_RR = adjusted_rr,
-        Adjusted_RD = adjusted_rd,
-        Adjusted_RD_Percentage_Points = adjusted_rd * 100
+# Summarize standardized association measures
+adjusted_measures_summary <- data.frame(
+    `Measure` = c(
+        "Adjusted Risk Ratio",
+        "Adjusted Risk Difference",
+        "Adjusted Risk Difference (pp)"
     ),
-    3
+    `Estimate` = c(
+        sprintf("%.3f", adjusted_rr),
+        sprintf("%.4f", adjusted_rd),
+        sprintf("%.2f", adjusted_rd * 100)
+    ),
+    `Interpretation Scale` = c(
+        "Relative",
+        "Absolute Proportion",
+        "Percentage Points"
+    ),
+    check.names = FALSE
+)
+
+knitr::kable(
+    adjusted_measures_summary,
+    caption = "Regression-Standardized Association Measures",
+    align = c("l", rep("r", ncol(adjusted_measures_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
 )
 ```
 
-The standardized adjusted risk ratio was `r round(adjusted_rr, 2)`, indicating that the model-estimated hospitalization proportion under reported pre-existing medical conditions was approximately `r round(adjusted_rr, 2)` times the proportion under no reported medical conditions, after standardizing to the same age and sex distribution.
+### Interpretation of Adjusted Risk Ratio
 
-The adjusted risk difference was `r round(adjusted_rd * 100, 1)` percentage points, representing the absolute difference between the two standardized hospitalization proportions.
+The regression-standardized adjusted risk ratio was `r sprintf("%.2f", adjusted_rr)`. This indicates that the model-estimated hospitalization proportion under reported pre-existing medical conditions was approximately `r sprintf("%.2f", adjusted_rr)` times the corresponding proportion under no reported medical conditions, after standardizing to the same age and sex distribution.
 
-These estimates describe model-adjusted associations within the analytic cohort. They do not establish a causal effect of pre-existing medical conditions on hospitalization. In particular, adjustment for age and sex does not eliminate potential residual confounding, selection bias associated with missing surveillance data, or limitations arising from the sampling procedure.
+The adjusted risk ratio therefore summarizes the relative association between reported pre-existing medical conditions and hospitalization, accounting for differences in the age and sex distributions of the observed exposure groups.
+
+### Interpretation of Adjusted Risk Difference
+
+The regression-standardized adjusted risk difference was `r sprintf("%.4f", adjusted_rd)`, equivalent to `r sprintf("%.2f", adjusted_rd * 100)` percentage points.
+
+This represents the absolute difference between the two standardized hospitalization proportions. In other words, the model estimated approximately `r sprintf("%.1f", adjusted_rd * 100)` additional hospitalizations per 100 cases under the reported-medical-conditions scenario compared with the no-reported-medical-conditions scenario, when both scenarios were standardized to the same age and sex distribution.
 
 # Statistical Uncertainty and Bootstrap Inference
 
-The nonparametric bootstrap approximates the sampling distribution of a statistic by repeatedly drawing samples with replacement from the observed data. The variability of the resulting estimates can be used to quantify sampling uncertainty.
+The nonparametric bootstrap is a resampling method used to approximate the sampling distribution of a statistic. Rather than repeatedly collecting new datasets, the bootstrap generates samples from the observed data by randomly selecting observations with replacement.
+
+In this analysis, bootstrap resampling is used to evaluate uncertainty in the hospitalization proportion and the regression-standardized measures of association.
 
 ## Resampling the Analytic Cohort
 
 Each bootstrap sample contains the same number of observations as the original analytic cohort. However, because sampling occurs with replacement, some observations appear multiple times while others are not selected.
 
-Maintaining the original sample size allows the bootstrap procedure to approximate how an estimator would vary across repeated samples of that size, using the observed data as an empirical approximation to the underlying population distribution.
+Maintaining the original sample size allows the bootstrap procedure to approximate the variability of an estimator across repeated samples of the same size, using the empirical distribution of the observed cohort as the resampling distribution.
+
+### Constructing a Bootstrap Sample
 
 ```{r}
 # Set random seed for reproducibility
 set.seed(42)
 
-# Number of observations in adjusted-analysis cohort
+# Number of observations in adjusted analytic cohort
 n <- nrow(adjusted_analysis)
 
 # Draw n row indices with replacement
@@ -944,110 +1278,287 @@ bootstrap_indices <- sample(
 # Construct a bootstrap sample
 bootstrap_sample <- adjusted_analysis[
     bootstrap_indices,
+    ,
+    drop = FALSE
 ]
 
-# Compare sample sizes
-nrow(adjusted_analysis)
-nrow(bootstrap_sample)
+# Summarize sample sizes
+bootstrap_size_summary <- data.frame(
+    `Dataset` = c(
+        "Original Adjusted Cohort",
+        "Bootstrap Sample"
+    ),
+    `Observations (N)` = format(
+        c(nrow(adjusted_analysis), nrow(bootstrap_sample)),
+        big.mark = ","
+    ),
+    check.names = FALSE
+)
+
+knitr::kable(
+    bootstrap_size_summary,
+    caption = "Bootstrap Sample Size Comparison",
+    align = c("l", rep("r", ncol(bootstrap_size_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
-For a dataset containing $n$ observations, the probability that a specific observation is not selected in a single draw is:
+The original adjusted analytic cohort contained `r format(n, big.mark = ",")` observations. The bootstrap sample also contained `r format(nrow(bootstrap_sample), big.mark = ",")` observations, although the composition of the sample differed because individual cases could be selected more than once.
+
+### Observation Selection and Sample Composition
+
+For a dataset containing $n$ observations, the porbability that a particular observation is not selected in a single draw is:
 
 $$
+P(\text{not selected in one draw})
+=
 1-\frac{1}{n}.
 $$
 
-The probability that a specific observation is never selected across $n$ independent draws is:
+Since a bootstrap sample consists of $n$ independent draws with replacement, the probability that a particular observation is never selected is:
 
 $$
-P(\text{not selected}) = (1-\frac{1}{n})^n.
+P(\text{never selected})
+=
+\left(1-\frac{1}{n}\right)^n.
 $$
 
-As $n$ becomes large, this approaches $e^{-1} \approx 0.368$. As a result, the probability that an observation appears at least once is roughly $1-e^{-1}\approx 0.632$.
+As $n$ becomes large, this probability approaches:
+
+$$
+\lim_{n\to\infty}
+\left(1-\frac{1}{n}\right)^n
+=
+e^{-1}
+\approx 0.368.
+$$
+
+As a result, the probability that an observation appears at least once in a bootstrap sample approaches:
+
+$$
+P(\text{selected at least once})
+=
+1-e^{-1}
+\approx 0.632.
+$$
+
+A typical bootstrap sample contains approximately $63.2$% of the original observations as distinct cases, with repeated selections accounting for the remaining positions.
 
 ```{r}
-# Unique observations selected
-n_unique <- length(unique(bootstrap_indices))
-
-# Proportion of original observations represented
-prop_unique <- n_unique / n
-
-n_unique
-prop_unique
-
-# Count how many times each original observation appears
+# Count how many times each original observation was selected
 selection_counts <- tabulate(
     bootstrap_indices,
     nbins = n
 )
 
-# Frequency distribution of selection counts
-table(selection_counts)
+# Calculate the number and percentage of unique observations
+n_unique <- sum(selection_counts > 0)
+n_not_selected <- sum(selection_counts == 0)
 
+prop_unique <- (n_unique / n) * 100
+prop_not_selected <- (n_not_selected / n) * 100
 
-# Original hospitalization distribution
-prop.table(table(adjusted_analysis$hospitalized))
+# Summarize bootstrap sample composition
+selection_summary <- data.frame(
+    `Measure` = c(
+        "Original Observations",
+        "Distinct Observations Selected",
+        "Observations Not Selected",
+        "Percentage Selected at Least Once",
+        "Percentage Not Selected"
+    ),
+    `Value` = c(
+        format(n, big.mark = ","),
+        format(n_unique, big.mark = ","),
+        format(n_not_selected, big.mark = ","),
+        sprintf("%.1f%%", prop_unique),
+        sprintf("%.1f%%", prop_not_selected)
+    ),
+    check.names = FALSE
+)
 
-# Bootstrap hospitalization distribution
-prop.table(table(bootstrap_sample$hospitalized))
+knitr::kable(
+    selection_summary,
+    caption = "Bootstrap Sample Composition",
+    align = c("l", rep("r", ncol(selection_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 
+# Summarize the frequency of repeated selections
+selection_frequency <- as.data.frame(
+    table(selection_counts)
+)
+
+names(selection_frequency) <- c(
+    "Times_Selected",
+    "Number_of_Observations"
+)
+
+selection_frequency$Times_Selected <- as.integer(
+    as.character(selection_frequency$Times_Selected)
+)
+
+selection_frequency$Percentage <- (
+    selection_frequency$Number_of_Observations / n
+) * 100
+
+selection_frequency_summary <- data.frame(
+    `Times Selected` = selection_frequency$Times_Selected,
+    `Original Observations (n)` = format(
+        selection_frequency$Number_of_Observations,
+        big.mark = ","
+    ),
+    `Percentage of Original Cohort` = sprintf(
+        "%.1f%%",
+        selection_frequency$Percentage
+    ),
+    check.names = FALSE
+)
+
+knitr::kable(
+    selection_frequency_summary,
+    caption = "Frequency of Observation Selection",
+    align = c("l", rep("r", ncol(selection_frequency_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
+In this bootstrap sample, `r format(n_unique, big.mark = ",")` distinct observations were selected, representing `r sprintf("%.1f", prop_unique)`% of the original adjusted analytic cohort. The remaining `r format(n_not_selected, big.mark = ",")` observations (`r sprintf("%.1f", prop_not_selected)`%) were not selected.
+
+### Comparing Hospitalization Distributions
+
+bootstrap sampling changes the composition of the analytic cohort, the proportion hospitalized may differ between the original dataset and a particular bootstrap sample.
+
+The hospitalization distribution was compared between the original adjusted cohort and the bootstrap sample to illustrate this sampling variability.
+
+```{r}
+# Calculate hospitalization counts
+original_hosp <- table(
+    adjusted_analysis$hospitalized
+)
+
+bootstrap_hosp <- table(
+    bootstrap_sample$hospitalized
+)
+
+# Calculate hospitalization percentages
+original_hosp_pct <- prop.table(original_hosp) * 100
+bootstrap_hosp_pct <- prop.table(bootstrap_hosp) * 100
+
+# Construct comparison table
+hospitalization_comparison <- data.frame(
+    `Hospitalization Status` = names(original_hosp),
+    `Original (n)` = as.integer(original_hosp),
+    `Original (%)` = sprintf(
+        "%.1f%%",
+        original_hosp_pct
+    ),
+    `Bootstrap (n)` = as.integer(bootstrap_hosp),
+    `Bootstrap (%)` = sprintf(
+        "%.1f%%",
+        bootstrap_hosp_pct
+    ),
+    check.names = FALSE
+)
+
+knitr::kable(
+    hospitalization_comparison,
+    caption = "Hospitalization Distribution: Original vs. Bootstrap Sample",
+    align = c("l", rep("r", ncol(hospitalization_comparison) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
+
+# Extract overall hospitalization proportions
+original_hosp_risk <- unname(original_hosp_pct["Yes"])
+bootstrap_hosp_risk <- unname(bootstrap_hosp_pct["Yes"])
+
+# Calculate percentage-point difference
+hosp_difference <- bootstrap_hosp_risk - original_hosp_risk
+
+hospitalization_summary <- data.frame(
+    `Measure` = c(
+        "Original Hospitalization Proportion",
+        "Bootstrap Hospitalization Proportion",
+        "Difference (Percentage Points)"
+    ),
+    `Estimate` = c(
+        sprintf("%.2f%%", original_hosp_risk),
+        sprintf("%.2f%%", bootstrap_hosp_risk),
+        sprintf("%+.2f", hosp_difference)
+    ),
+    check.names = FALSE
+)
+
+knitr::kable(
+    hospitalization_summary,
+    caption = "Hospitalization Proportion Comparison",
+    align = c("l", rep("r", ncol(hospitalization_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
+```
+
+The observed hospitalization proportion in the original adjusted analytic cohort was `r sprintf("%.1f", original_hosp_risk)`%, compared with `r sprintf("%.1f", bootstrap_hosp_risk)`% in the bootstrap sample.
+
+The difference was `r sprintf("%+.2f", hosp_difference)` percentage points, reflecting the change in sample composition introduced by resampling with replacement.
+
+This comparison illustrates the variability that can arise from a single bootstrap resample. However, one resample is insufficient to characterize the sampling distribution of the hospitalization proportion. Repeating the procedure many times allows the distribution of bootstrap estimates to be examined and used for statistical inference.
 
 ### Constructing a Bootstrap Distribution
 
-A single bootstrap sample demonstrates how sampling with replacement changes the composition of the analytic cohort. However, estimating sampling variability requires repeated resampling and recalculation of the statistic of interest for each bootstrap sample.
+The single bootstrap sample above demonstrates how sampling with replacement changes the composition of the analytic cohort. However, estimating sampling variability requires repeated resampling and recalculation of the statistic of interest for each bootstrap sample.
 
-```{r}
-# Examine hospitalization variable
-class(adjusted_analysis$hospitalized)
-
-levels(adjusted_analysis$hospitalized)
-
-table(adjusted_analysis$hospitalized)
-
-# Verify the proportion
-mean(adjusted_analysis$hospitalized == "Yes")
-```
-
-We first examine the overall hospitalization proportion. The observed hospitalization proportion is defined as:
+We first examine the overall hospitalization proportion in the adjusted analytic cohort. The observed hospitalization proportion is defined as:
 
 $$
-\hat{p} = \frac{1}{n}\sum_{i=1}^{n}Y_i,
+\hat{p}
+=
+\frac{1}{n}
+\sum_{i=1}^{n}Y_i,
 $$
 
-where $Y_i=1$ indicates hospitalization for case $i$, $Y_i=0$ indicates no hospitalization, and $n$ is the number of cases in the analytic cohort.
+where $Y_i = 1$ indicates hospitalization for case $i$, $Y_i = 0$ indicates no hospitalization, and $n$ represents the number of cases in the adjusted analytic cohort.
 
-For each boostrap replication $b$, we draw $n$ case records with replacement and recalculate the hospitalization proportion, producing $\hat{p}^{*(b)}$. Repeating this process $B$ times yields an empirical bootstrap distribution of the estimator.
+For each bootstrap replication $b$, a sample of $n$ cases is drawn with replacement and the hospitalization proportion is recalculated, producing $\hat{p}^{*(b)}$. Repeating this process $B$ times generates an empirical bootstrap distribution of the estimator.
 
 ```{r}
+# Calculate original hospitalization proportion
+original_prop <- mean(
+    adjusted_analysis$hospitalized == "Yes"
+)
 
-# Original hospitalization proportion
-original_prop <- mean(adjusted_analysis$hospitalized == "Yes")
-
-original_prop
-
-
+# Set random seed for reproducibility
 set.seed(42)
 
 # Number of bootstrap replications
 B <- 1000
 
-# Store hospitalization proportions
+# Number of cases in adjusted analytic cohort
+n <- nrow(adjusted_analysis)
+
+# Initialize vector to store bootstrap proportions
 bootstrap_props <- numeric(B)
 
-# Repeat the resampling process
+# Generate bootstrap distribution
 for (b in seq_len(B)) {
 
-    # Sample observations with replacement
+    # Sample case indices with replacement
     indices <- sample(
         x = seq_len(n),
         size = n,
         replace = TRUE
     )
 
-    # Construct bootstrap dataset
-    boot_data <- adjusted_analysis[indices, ]
+    # Construct bootstrap sample
+    boot_data <- adjusted_analysis[
+        indices,
+        ,
+        drop = FALSE
+    ]
 
     # Calculate hospitalization proportion
     bootstrap_props[b] <- mean(
@@ -1055,53 +1566,92 @@ for (b in seq_len(B)) {
     )
 }
 
-# Examine bootstrap estimates
-summary(bootstrap_props)
+# Summarize original and bootstrap estimates
+bootstrap_distribution_summary <- data.frame(
+    `Measure` = c(
+        "Original Hospitalization Proportion",
+        "Mean Bootstrap Proportion",
+        "Minimum Bootstrap Proportion",
+        "Maximum Bootstrap Proportion",
+        "Number of Replications"
+    ),
+    `Value` = c(
+        sprintf("%.4f", original_prop),
+        sprintf("%.4f", mean(bootstrap_props)),
+        sprintf("%.4f", min(bootstrap_props)),
+        sprintf("%.4f", max(bootstrap_props)),
+        format(B, big.mark = ",")
+    ),
+    check.names = FALSE
+)
+
+knitr::kable(
+    bootstrap_distribution_summary,
+    caption = "Bootstrap Distribution of Hospitalization Proportion",
+    align = c("l", rep("r", ncol(bootstrap_distribution_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
-The bootstrap estimates provide an empirical approximation to the sampling distribution of the hospitalization proportion. Examining this distribution allows us to evaluate its center, spread, and shape.
+The original hospitalization proportion was `r sprintf("%.2f", original_prop * 100)`%. Across `r format(B, big.mark = ",")` bootstrap replications, the mean estimated hospitalization proportion was `r sprintf("%.2f", mean(bootstrap_props) * 100)`%.
 
-The distribution's center indicates whether the bootstrap estimates tend to cluster around the original observed proportion. Its spread reflects the variability of the estimator across resamples, while its shape helps assess whether a symmetric, approximately normal approximation is reasonable.
+The bootstrap estimates provide an empirical approximation to the sampling distribution of the hospitalization proportion under independent case-level resampling. Examining the center, spread, and shape of this distribution helps characterize the estimator's sampling variability.
 
-The histogram below displays the 1,000 bootstrap estimates. The solid red line indicates the original hospitalization proportion, while the dashed green line indicates the mean of the bootstrap estimates.
+#### Visualizing the Bootstrap Distribution
+
+The histogram below displays the distribution of hospitalization proportions obtained from the bootstrap replications. The solid red line represents the original observed hospitalization proportion, while the dashed green line represents the mean of the bootstrap estimates.
 
 ```{r}
-hist(
-    bootstrap_props,
-    breaks = 30,
-    main = "Bootstrap Distribution of Hospitalization Proportion",
-    xlab = "Hospitalization Proportion",
-    col = "lightblue",
-    border = "white"
+# Convert bootstrap estimates to a data frame
+bootstrap_prop_df <- data.frame(
+    Hospitalization_Proportion = bootstrap_props
 )
 
-# Original observed proportion
-abline(
-    v = original_prop,
-    col = "red",
-    lwd = 2
-)
-
-# Bootstrap mean
-abline(
-    v = mean(bootstrap_props),
-    col = "darkgreen",
-    lwd = 2,
-    lty = 2
-)
-
-legend(
-    "topright",
-    legend = c("Original Estimate", "Bootstrap Mean"),
-    col = c("red", "darkgreen"),
-    lty = c(1, 2),
-    lwd = 2
-)
+# Plot bootstrap distribution
+ggplot(
+    bootstrap_prop_df,
+    aes(x = Hospitalization_Proportion)
+) +
+    geom_histogram(
+        bins = 30,
+        fill = "lightblue",
+        color = "white"
+    ) +
+    geom_vline(
+        xintercept = original_prop,
+        color = "red",
+        linewidth = 1
+    ) +
+    geom_vline(
+        xintercept = mean(bootstrap_props),
+        color = "darkgreen",
+        linewidth = 1,
+        linetype = "dashed"
+    ) +
+    labs(
+        title = "Bootstrap Distribution of Hospitalization Proportion",
+        subtitle = paste(
+            format(B, big.mark = ","),
+            "Bootstrap Replications"
+        ),
+        x = "Hospitalization Proportion",
+        y = "Frequency",
+        caption = paste(
+            "Red: Original Estimate |",
+            "Green Dashed: Bootstrap Mean"
+        )
+    ) +
+    theme_minimal()
 ```
 
-The bootstrap distribution appears approximately symmetric, with estimates concentrated around `r round(mean(bootstrap_props), 3)`, compared with the original observed hospitalization proportion of `r round(original_prop, 3)`. The proximity of these values suggests that the boostrap estimates are centered near the observed statistic
+The bootstrap distribution is centered near the original observed hospitalization proportion. The mean bootstrap estimate was `r sprintf("%.4f", mean(bootstrap_props))`, compared with the original estimate of `r sprintf("%.4f", original_prop)`.
+
+The difference between the bootstrap mean and the original estimate was `r sprintf("%+.4f", mean(bootstrap_props) - original_prop)`, indicating that the bootstrap estimates were centered close to the observed statistic.
 
 *The bootstrap distribution demonstrates that the estimated hospitalization proportion varies across samples of the same size, even when all samples are drawn from the same observed cohort.*
+
+#### Bootstrap Standard Error
 
 The bootstrap standard error is calculated as the sample standard deviation of the $B$ bootstrap estimates:
 
@@ -1109,97 +1659,124 @@ $$
 \widehat{\mathrm{SE}}_{\mathrm{boot}}(\hat p)
 =
 \sqrt{
-\frac{1}{B-1}
-\sum_{b=1}^{B}
-(\hat p^{*(b)}-\bar p^*)^2
+    \frac{1}{B-1}
+    \sum_{b=1}^{B}
+    \left(
+    \hat{p}^{*(b)}-\bar{p}^{*}
+    \right)^2
 }.
 $$
 
-Here, $\hat p^{*(b)}$ represents the estimated hospitalization proportion from bootstrap replication $b$, and $\bar p^*$ is the mean of the bootstrap estimates.
+Here, $\hat{p}^{*(b)}$ represents the hospitalization proportion estimated in bootstrap replication $b$, and $\bar{p}^{*}$ represents the mean of the bootstrap estimates.
 
 Unlike the standard deviation of individual hospitalization outcomes, which describes variation across cases, the bootstrap standard error describes variation in the estimated hospitalization proportion across resamples.
 
-We can also construct a 95% percentile bootstrap confidence interval by identifying the 2.5th and 97.5th percentiles of the bootstrap distribution:
+#### Percentile Bootstrap Confidence Interval
+
+A 95% percentile bootstrap confidence interval was constructed using the 2.5th and 97.5th percentiles of the bootstrap distribution:
 
 $$
-CI_{95\%} =
-[
+CI_{95\%}
+=
+\left[
 Q_{0.025}(\hat{p}^{*}),
 Q_{0.975}(\hat{p}^{*})
-].
+\right].
 $$
 
-This approach uses the empirical distribution of the bootstrap estimates rather than assuming that the distribution is exactly normal.
+This approach uses the empirical distribution of bootstrap estimates to construct an interval without requiring an exactly normal sampling distribution.
+
+However, percentile confidence intervals still depend on the bootstrap distribution adequately approximating the estimator's sampling behavior.
 
 ```{r}
+# Calculate bootstrap standard error
+bootstrap_se <- sd(bootstrap_props)
 
-# Calculate bootstrap summary statistics
+# Calculate 95% percentile bootstrap confidence interval
 bootstrap_ci <- quantile(
     bootstrap_props,
     probs = c(0.025, 0.975)
 )
 
+# Calculate bootstrap mean
+bootstrap_mean <- mean(bootstrap_props)
+
+# Construct formatted inference summary
 bootstrap_summary <- data.frame(
-    Statistic = c(
-        "Original hospitalization proportion",
-        "Mean bootstrap proportion",
-        "Bootstrap standard error",
-        "95% CI lower bound",
-        "95% CI upper bound"
+    `Statistic` = c(
+        "Original Hospitalization Proportion",
+        "Mean Bootstrap Proportion",
+        "Bootstrap Standard Error",
+        "95% CI Lower Bound",
+        "95% CI Upper Bound"
     ),
-    Estimate = c(
-        original_prop,
-        mean(bootstrap_props),
-        sd(bootstrap_props),
-        bootstrap_ci[1],
-        bootstrap_ci[2]
-    )
+    `Estimate` = sprintf(
+        "%.4f",
+        c(
+            original_prop,
+            bootstrap_mean,
+            bootstrap_se,
+            bootstrap_ci[1],
+            bootstrap_ci[2]
+        )
+    ),
+    `Percentage Scale` = sprintf(
+        "%.2f%%",
+        c(
+            original_prop,
+            bootstrap_mean,
+            bootstrap_se,
+            bootstrap_ci[1],
+            bootstrap_ci[2]
+        ) * 100
+    ),
+    check.names = FALSE
 )
 
 knitr::kable(
     bootstrap_summary,
-    digits = 4,
-    caption = "Bootstrap inference for the hospitalization proportion"
+    caption = "Bootstrap Inference for Hopitalization Proportion",
+    align = c("l", rep("r", ncol(bootstrap_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
 )
 ```
 
-The observed hospitalization proportion in the adjusted analytic cohort was `r original_prop * 100`%. Across `r B` bootstrap replications, the mean estimated hospitalization proportion was also approximately `r mean(bootstrap_props) * 100`%, with a bootstrap standard error of `r sd(bootstrap_props)` percentage points.
-
-The 95% percentile bootstrap confidence interval ranged from `rbootstrap_ci[1] * 100`% to `rbootstrap_ci[2] * 100`%. This interval describes the sampling variability of the estimated hospitalization proportion under independent case-level resampling of the observed analytic cohort.
+The observed hospitalization proportion in the adjusted analytic cohort was `r sprintf("%.2f", original_prop * 100)`%. Across `r format(B, big.mark = ",")` bootstrap replications, the mean estimated hospitalization proportion was `r sprintf("%.2f", bootstrap_mean * 100)`%, with a bootstrap standard error of `r sprintf("%.4f", bootstrap_se)`, equivalent to `r sprintf("%.2f", bootstrap_se * 100)` percentage points.
 
 ## Refitting the Regression Model
 
 Unlike the overall hospitalization proportion, the regression-standardized estimates depend on coefficients estimated from the observed data. If the composition of the analytic cohort changes, the fitted regression coefficients may also change.
 
-As a result, each bootstrap replication must repeat the model-fitting procedure rather than reuse the coefficients estimated from the original cohort.
+As a result, each bootstrap replication must repeat the model-fitting procedure rather than reuse the coefficients estimated from the original analytic cohort.
 
-For each bootstrap replication, we draw a sample of $n$ case records with replacement and refit the same logistic regression model. Repeating this procedure produces bootstrap distributions of the estimated regression coefficients.
+For each bootstrap replication, a sample of $n$ case records is drawn with replacement, and the same multivariable logistic regression model is refitted. Repeating this procedure produces bootstrap distributions of the estimated regression coefficients.
 
-These distributions reflect how the fitted coefficients vary across resamples of the observed analytic cohort, conditional on the resampling assumptions.
+The resulting distribution provides an empirical approximation to the sampling variability of the estimated log-odds ratio under the assumed case-level resampling procedure.
+
+### Generating Bootstrap Regression Models
 
 ```{r}
-# Set seed for reproducibility
+# Set random seed for reproducibility
 set.seed(42)
 
 # Number of bootstrap replications
-B_model <- 100
+B_model <- 2000
 
-# Store medical-condition coefficient
+# Number of observations in adjusted analytic cohort
+n <- nrow(adjusted_analysis)
+
+# Initialize storage for bootstrap coefficients
 bootstrap_beta <- rep(NA_real_, B_model)
 
-# Exposure coefficient in original model
-names(coef(logistic_model))
-
-exposure_term <- "medcondYes"
-
-stopifnot(exposure_term %in% names(coef(logistic_model)))
-
+# Initialize storage for fitted models and bootstrap samples
 bootstrap_models <- vector("list", B_model)
 bootstrap_samples <- vector("list", B_model)
 
+# Refit the regression model for each bootstrap replication
 for (b in seq_len(B_model)) {
 
-    # Draw case records with replacement
+    # Sample case indices with replacement
     indices <- sample(
         x = seq_len(n),
         size = n,
@@ -1207,91 +1784,203 @@ for (b in seq_len(B_model)) {
     )
 
     # Construct bootstrap dataset
-    boot_data <- adjusted_analysis[indices, , drop = FALSE]
+    boot_data <- adjusted_analysis[
+        indices,
+        ,
+        drop = FALSE
+    ]
 
     # Refit logistic regression model
-    boot_model <- glm(
-        hospitalized ~ medcond + age_factor + sex_factor,
-        data = boot_data,
-        family = binomial(link = "logit")
+    boot_model <- tryCatch(
+        suppressWarnings(
+            glm(
+                hospitalized ~ medcond + age_factor + sex_factor,
+                data = boot_data,
+                family = binomial(link = "logit")
+            )
+        ),
+        error = function(e) NULL
     )
 
-    # Store exposure coefficient if model converged
-    if (isTRUE(boot_model$converged) &&
-    all(is.finite(coef(boot_model)))) {
+    # Skip unsuccessful model fits
+    if (is.null(boot_model)) {
+        next
+    }
 
-        # Store the exposure coefficient
-        bootstrap_beta[b] <- unname(coef(boot_model)[exposure_term])
+    # Verify convergence and finite coefficients
+    valid_fit <- isTRUE(boot_model$converged) &&
+        exposure_term %in% names(coef(boot_model)) &&
+        all(is.finite(coef(boot_model)))
 
-        # Store the fitted model and its bootstrap sample
+    if (valid_fit) {
+
+        # Store exposure coefficient
+        bootstrap_beta[b] <- unname(
+            coef(boot_model)[exposure_term]
+        )
+
+        # Store fitted model and corresponding bootstrap sample
         bootstrap_models[[b]] <- boot_model
         bootstrap_samples[[b]] <- boot_data
     }
 }
 
-# Check for unsuccessful coefficient estimates
-sum(!is.finite(bootstrap_beta))
+# Identify successful bootstrap replications
+valid_beta <- bootstrap_beta[is.finite(bootstrap_beta)]
 
-# Summarize successful bootstrap coefficients
-summary(bootstrap_beta[is.finite(bootstrap_beta)])
+n_successful <- length(valid_beta)
+n_failed <- B_model - n_successful
+
+# Summarize bootstrap model fitting
+model_fit_summary <- data.frame(
+    `Measure` = c(
+        "Bootstrap Replications Attempted",
+        "Successful Model Fits",
+        "Unsuccessful Model Fits",
+        "Successful Replications (%)"
+    ),
+    `Value` = c(
+        format(B_model, big.mark = ","),
+        format(n_successful, big.mark = ","),
+        format(n_failed, big.mark = ","),
+        sprintf("%.1f%%", 100 * n_successful / B_model)
+    ),
+    check.names = FALSE
+)
+
+knitr::kable(
+    model_fit_summary,
+    caption = "Bootstrap Regression Model Fitting Summary",
+    align = c("l", rep("r", ncol(model_fit_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
-Each bootstrap replication produces a new logistic regression model fitted to a resampled version of the analytic cohort, with this analysis comprising `r B_model` independent replications. Since observations may appear multiple times or be omitted from an individual resample, the estimated regression coefficients can differ from those obtained using the original data.
+A total of `r B_model` bootstrap regression models were attempted. Of these, `r n_successful` produced converged models with finite coefficient estimates, while `r n_failed` were unsuccessful.
 
-The coefficient associated with reported pre-existing medical conditions is retained from each fitted model. Its bootstrap distribution can be used to examine the variability of the estimated log odds ratio.
+Each successful replication represents a logistic regression model fitted to a resampled version of the adjusted analytic cohort. Do to the change of observations being selected multiple times or omitted from an individual resample, the fitted coefficients can differ from those estimated using the original dataset.
+
+### Summarizing the Bootstrap Exposure Coefficients
+
+The exposure coefficient from each successful bootstrap model was retained to examine variability in the estimated conditional log-odds ratio.
+
+```{r}
+# Original exposure coefficient
+original_beta <- unname(
+    coef(logistic_model)[exposure_term]
+)
+
+# Calculate bootstrap coefficient summary statistics
+beta_mean <- mean(valid_beta)
+beta_se <- sd(valid_beta)
+beta_median <- median(valid_beta)
+
+# Construct formatted coefficient summary
+beta_summary <- data.frame(
+    `Statistic` = c(
+        "Original Exposure Coefficient",
+        "Mean Bootstrap Coefficient",
+        "Median Bootstrap Coefficient",
+        "Bootstrap Standard Error",
+        "Minimum Bootstrap Coefficient",
+        "Maximum Bootstrap Coefficient"
+    ),
+    `Estimate` = sprintf(
+        "%.4f",
+        c(
+            original_beta,
+            beta_mean,
+            beta_median,
+            beta_se,
+            min(valid_beta),
+            max(valid_beta)
+        )
+    ),
+    check.names = FALSE
+)
+
+knitr::kable(
+    beta_summary,
+    caption = "Bootstrap Distribution of Exposure Coefficients",
+    align = c("l", rep("r", ncol(beta_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
+```
+
+The exposure coefficient estimated from the original logistic regression model was `r sprintf("%.3f", original_beta)`. Across the `r n_successful` successful bootstrap replications, the mean exposure coefficient was `r sprintf("%.3f", beta_mean)`, with a bootstrap standard error of `r sprintf("%.3f", beta_se)`.
+
+The bootstrap standard error describes the variability of the estimated exposure coefficient across resampled datasets. Unlike the model-based standard error obtained from the original logistic regression, this estimate is calculated from the empirical distribution of bootstrap coefficients.
 
 ### Examining the Bootstrap Coefficient Distribution
 
-The histogram below displays the bootstrap estimates of the medical-condition coefficient on the log-odds scale. The vertical reference line indicates the coefficient estimated from the original analytic cohort.
+The bootstrap distribution of the medical-condition coefficient was examined to assess its variability across resampled analytic cohorts. The logistic regression estimates coefficients are on the log-odds scale, so this distribution represents the sampling variability of the estimated conditional log-odds ratio.
+
+The histogram below displays the exposure coefficients from successful bootstrap replications. The solid red line represents the coefficient estimated from the original analytic cohort, while the dashed green line represents the mean of the bootstrap estimates.
 
 ```{r}
-# Check the actual coefficient names
-names(coef(logistic_model))
-
-# Inspect bootstrap estimates
-summary(bootstrap_beta)
-
-# Count valid estimates
-sum(is.finite(bootstrap_beta))
-```
-
-```{r}
-# Original medical-condition coefficient
-original_beta <- unname(coef(logistic_model)[exposure_term])
-
-# Retain successful bootstrap estimates
+# Retain successful bootstrap coefficient estimates
 valid_beta <- bootstrap_beta[is.finite(bootstrap_beta)]
 
-# Plot bootstrap coefficient distribution
-hist(
-    valid_beta,
-    breaks = 15,
-    main = "Bootstrap Distribution of Exposure Coefficient",
-    xlab = "Medical-Condition Coefficient (Log Odds)",
-    col = "lightblue",
-    border = "white"
+# Original exposure coefficient
+original_beta <- unname(
+    coef(logistic_model)[exposure_term]
 )
 
-# Add original coefficient
-abline(
-    v = original_beta,
-    col = "red",
-    lwd = 2
+# Construct data frame for visualization
+bootstrap_beta_df <- data.frame(
+    Exposure_Coefficient = valid_beta
 )
+
+# Plot bootstrap coefficient distribution
+ggplot(
+    bootstrap_beta_df,
+    aes(x = Exposure_Coefficient)
+) +
+    geom_histogram(
+        bins = 15,
+        fill = "lightblue",
+        color = "white"
+    ) +
+    geom_vline(
+        xintercept = original_beta,
+        color = "red",
+        linewidth = 1
+    ) +
+    geom_vline(
+        xintercept = mean(valid_beta),
+        color = "darkgreen",
+        linewidth = 1,
+        linetype = "dashed"
+    ) +
+    labs(
+        title = "Bootstrap Distribution of Exposure Coefficient",
+        subtitle = paste(
+            length(valid_beta),
+            "Successful Bootstrap Replications"
+        ),
+        x = "Medical-Condition Coefficient (Log Odds)",
+        y = "Frequency",
+        caption = paste(
+            "Red: Original Estimate |",
+            "Green Dashed: Bootstrap Mean"
+        )
+    ) +
+    theme_minimal()
 ```
 
-The medical-condition coefficient estimated from the original logistic regression model was `r round(original_beta, 3)` on the log-odds scale. Across `r B_model` bootstrap replications, the mean coefficient was `r round(mean(valid_beta), 3)`, with a bootstrap standard error of `r round(sd(valid_beta), 3)`.
+The medical-condition coefficient estimated from the original logistic regression model was `r sprintf("%.3f", original_beta)` on the log-odds scale. Across `r length(valid_beta)` successful bootstrap replications, the mean coefficient was `r sprintf("%.3f", mean(valid_beta))`, with a bootstrap standard error of `r sprintf("%.3f", sd(valid_beta))`.
 
-
-The bootstrap estimates varied across resamples, demonstrating that the estimated conditional association between reported medical conditions and hospitalization is sensitive to the composition of the analytic cohort.
+The bootstrap coefficients varied across resamples, illustrating the sensitivity of the estimated conditional association between reported pre-existing medical conditions and hospitalization to the composition of the analytic cohort.
 
 ### Recalculating Standardized Estimates
 
-To extend bootstrap inference to the adjusted risk ratio (RR) and adjusted risk difference (RD), regression standardization must be applied to each of the `r B_model` fitted bootstrap models.
+To extend bootstrap inference to the adjusted risk ratio (RR) and adjusted risk difference (RD), regression standardization was repeated for each successfully fitted bootstrap model.
 
-For each bootstrap model, two exposure scenarios are constructed: one in which all cases are assigned reported pre-existing medical conditions and another in which all cases are assigned no reported pre-existing medical conditions. Age and sex remain unchanged.
+For each replication, two exposure scenarios were constructed using the corresponding bootstrap sample. Medical-condition status was set to `Yes` for all cases in one scenario and `No` for all cases in the other, while age group and sex remained unchanged.
 
-Predicted hospitalization probabilities are averaged across the corresponding bootstrap sample to obtain standardized hospitalization proportions.
+Predicted hospitalization probabilities were then generated from the corresponding bootstrap regression model and averaged across the bootstrap sample.
 
 For bootstrap replication $b$, the standardized hospitalization proportion under exposure condition $e$ is:
 
@@ -1301,38 +1990,43 @@ $$
 \frac{1}{n}
 \sum_{i=1}^{n}
 \widehat{P}^{*(b)}
-(Y_i=1\mid E_i=e,A_i^{*(b)},S_i^{*(b)}).
+\left(
+    Y_i=1 \mid E_i=e, A_i^{*(b)}, S_i^{*(b)}
+\right).
 $$
 
-The adjusted risk ratio and risk difference are then calculated as:
+Here, $\widehat{P}^{*(b)}$ denotes the predicted hospitalization probability from the regression model fitted in bootstrap replication $b$, and $A_i^{*(b)}$ and $S_i^{*(b)}$ represent the age group and sex of the $i$th observation in that bootstrap sample.
+
+The adjusted risk ratio and risk difference are recalculated as:
 
 $$
 \widehat{RR}^{*(b)}
 =
-\frac{\hat{p}_{1}^{*(b)}}{\hat{p}_{0}^{*(b)}}
+\frac{\hat{p}_{1}^{*(b)}}{\hat{p}_{0}^{*(b)}},
 $$
 
 $$
 \widehat{RD}^{*(b)}
 =
-\hat{p}_{1}^{*(b)}-\hat{p}_{0}^{*(b)}.
+\hat{p}_{1}^{*(b)} - \hat{p}_{0}^{*(b)}.
 $$
 
-Repeating this procedure across the previously fitted bootstrap models produces empirical distributions of the standardized measures of association.
+Repeating this procedure across bootstrap models produces empirical distributions of the standardized measures of association.
 
 ### Calculating Standardized Estimates
 
 ```{r}
-# Store standardized estimates from existing bootstrap models
+# Initialize storage for standardized bootstrap estimates
 bootstrap_rr <- rep(NA_real_, B_model)
 bootstrap_rd <- rep(NA_real_, B_model)
 
 bootstrap_risk_exposed <- rep(NA_real_, B_model)
 bootstrap_risk_unexposed <- rep(NA_real_, B_model)
 
-# Use previously fitted models and their corresponding samples
+# Apply regression standardization to stored bootstrap models
 for (b in seq_len(B_model)) {
 
+    # Retrieve fitted model and corresponding bootstrap sample
     boot_model <- bootstrap_models[[b]]
     boot_data <- bootstrap_samples[[b]]
 
@@ -1345,121 +2039,231 @@ for (b in seq_len(B_model)) {
     exposed <- boot_data
     unexposed <- boot_data
 
+    # Assign exposure status while preserving factor levels
     exposed$medcond <- factor(
-        "Yes",
+        rep("Yes", nrow(boot_data)),
         levels = levels(adjusted_analysis$medcond)
     )
 
     unexposed$medcond <- factor(
-        "No",
+        rep("No", nrow(boot_data)),
         levels = levels(adjusted_analysis$medcond)
     )
 
     # Predict hospitalization probabilities
-    p_exposed <- predict(
-        boot_model,
-        newdata = exposed,
-        type = "response"
+    predictions <- tryCatch(
+        list(
+            exposed = predict(
+                boot_model,
+                newdata = exposed,
+                type = "response"
+            ),
+            unexposed = predict(
+                boot_model,
+                newdata = unexposed,
+                type = "response"
+            )
+        ),
+        error = function(e) NULL
     )
 
-    p_unexposed <- predict(
-        boot_model,
-        newdata = unexposed,
-        type = "response"
-    )
-
-    # Standardize over the bootstrap sample
-    risk_exposed <- mean(p_exposed)
-    risk_unexposed <- mean(p_unexposed)
-
-    if (
-        !is.finite(risk_exposed) ||
-        !is.finite(risk_unexposed) ||
-        risk_unexposed <= 0
-    ) {
+    # Skip unsuccessful predictions
+    if (is.null(predictions)) {
         next
     }
 
-    # Store standardized proportions
+    # Standardize over the corresponding bootstrap sample
+    risk_exposed <- mean(predictions$exposed)
+    risk_unexposed <- mean(predictions$unexposed)
+
+    # Verify finite, valid probabilities
+    valid_risks <- is.finite(risk_exposed) &&
+        is.finite(risk_unexposed) &&
+        risk_exposed >= 0 &&
+        risk_exposed <= 1 &&
+        risk_unexposed > 0 &&
+        risk_unexposed <= 1
+
+    if (!valid_risks) {
+        next
+    }
+
+    # Store standardized hospitalization proportions
     bootstrap_risk_exposed[b] <- risk_exposed
     bootstrap_risk_unexposed[b] <- risk_unexposed
 
-    # Calculate adjusted measures
+    # Calculate standardized association measures
     bootstrap_rr[b] <- risk_exposed / risk_unexposed
     bootstrap_rd[b] <- risk_exposed - risk_unexposed
 }
 
-# Examine successful replications
-sum(is.finite(bootstrap_rr) & is.finite(bootstrap_rd))
+# Identify replications with valid estimates for both measures
+valid_replicates <- is.finite(bootstrap_rr) &
+    is.finite(bootstrap_rd)
 
-summary(bootstrap_rr)
-summary(bootstrap_rd)
+n_valid_standardized <- sum(valid_replicates)
+n_failed_standardized <- B_model - n_valid_standardized
+
+# Summarize successful standardization replications
+standardization_summary <- data.frame(
+    `Measure` = c(
+        "Bootstrap Replications Attempted",
+        "Valid Standardized Estimates",
+        "Unsuccessful Replications",
+        "Successful Replications (%)"
+    ),
+    `Value` = c(
+        format(B_model, big.mark = ","),
+        format(n_valid_standardized, big.mark = ","),
+        format(n_failed_standardized, big.mark = ","),
+        sprintf(
+            "%.1f%%",
+            100 * n_valid_standardized / B_model
+        )
+    ),
+    check.names = FALSE
+)
+
+knitr::kable(
+    standardization_summary,
+    caption = "Bootstrap Regression Standardization Summary",
+    align = c("l", rep("r", ncol(standardization_summary) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
+)
 ```
 
-Each successful bootstrap replication produces a standardized hospitalization proportion for both exposure scenarios, along with an adjusted RR and RD.
+Of the `r B_model` attempted bootstrap replications, `r n_valid_standardized` produced valid standardized hospitalization proportions and corresponding adjusted risk ratios and risk differences.
 
-Due to the models being fitted to different resampled cohorts, the resulting estimates vary across replications. This variability reflects changes in the fitted regression coefficients and the empirical distribution of age and sex.
+Each successful replication used a newly fitted logistic regression model and the age and sex distribution of its corresponding bootstrap sample. Consequently, variation in the resulting estimates reflects both changes in the fitted regression coefficients and changes in the empirical distribution of the adjustment variables.
 
 ### Examining the Bootstrap Distributions
 
-The distributions of the adjusted RR and RD can be examined to assess their center, spread, and shape.
+The bootstrap distributions of the adjusted risk ratio and risk difference were examined to assess their centers, spreads, and shapes.
 
-Unlike the regression coefficient distribution, these distributions directly represent the measures of association used in the primary epidemiologic analysis.
+Unlike the distribution of the exposure coefficient, which describes variability on the conditional log-odds scale, these distributions describe variability in the regression-standardized measures of association.
+
+The red reference lines represent the adjusted estimates obtained from the original analytic cohort, while the dashed green lines represent the means of the corresponding bootstrap distributions.
 
 ```{r}
-# Retain successful estimates
-valid_rr <- bootstrap_rr[is.finite(bootstrap_rr)]
-valid_rd <- bootstrap_rd[is.finite(bootstrap_rd)]
+# Retain successful standardized estimates
+valid_rr <- bootstrap_rr[valid_replicates]
+valid_rd <- bootstrap_rd[valid_replicates]
 
-# Adjusted RR distribution
-hist(
-    valid_rr,
-    breaks = 15,
-    main = "Bootstrap Distribution of Adjusted Risk Ratio",
-    xlab = "Adjusted Risk Ratio",
-    col = "lightblue",
-    border = "white"
+# Require sufficient valid replications
+stopifnot(length(valid_rr) >= 2)
+
+# Construct data frames for visualization
+bootstrap_rr_df <- data.frame(
+    Adjusted_RR = valid_rr
 )
 
-abline(
-    v = adjusted_rr,
-    col = "red",
-    lwd = 2
+bootstrap_rd_df <- data.frame(
+    Adjusted_RD = valid_rd
 )
 
-# Adjusted RD distribution
-hist(
-    valid_rd,
-    breaks = 15,
-    main = "Bootstrap Distribution of Adjusted Risk Difference",
-    xlab = "Adjusted Risk Difference",
-    col = "lightblue",
-    border = "white"
-)
+# Plot bootstrap distribution of adjusted risk ratio
+ggplot(
+    bootstrap_rr_df,
+    aes(x = Adjusted_RR)
+) +
+    geom_histogram(
+        bins = 15,
+        fill = "lightblue",
+        color = "white"
+    ) +
+    geom_vline(
+        xintercept = adjusted_rr,
+        color = "red",
+        linewidth = 1
+    ) +
+    geom_vline(
+        xintercept = mean(valid_rr),
+        color = "darkgreen",
+        linewidth = 1,
+        linetype = "dashed"
+    ) +
+    labs(
+        title = "Bootstrap Distribution of Adjusted Risk Ratio",
+        subtitle = paste(
+            length(valid_rr),
+            "Successful Bootstrap Replications"
+        ),
+        x = "Adjusted Risk Ratio",
+        y = "Frequency",
+        caption = paste(
+            "Red: Original Estimate |",
+            "Green Dashed: Bootstrap Mean"
+        )
+    ) +
+    theme_minimal()
 
-abline(
-    v = adjusted_rd,
-    col = "red",
-    lwd = 2
-)
+# Plot bootstrap distribution of adjusted risk difference
+ggplot(
+    bootstrap_rd_df,
+    aes(x = Adjusted_RD)
+) +
+    geom_histogram(
+        bins = 15,
+        fill = "lightblue",
+        color = "white"
+    ) +
+    geom_vline(
+        xintercept = adjusted_rd,
+        color = "red",
+        linewidth = 1
+    ) +
+    geom_vline(
+        xintercept = mean(valid_rd),
+        color = "darkgreen",
+        linewidth = 1,
+        linetype = "dashed"
+    ) +
+    labs(
+        title = "Bootstrap Distribution of Adjusted Risk Difference",
+        subtitle = paste(
+            length(valid_rd),
+            "Successful Bootstrap Replications"
+        ),
+        x = "Adjusted Risk Difference",
+        y = "Frequency",
+        caption = paste(
+            "Red: Original Estimate |",
+            "Green Dashed: Bootstrap Mean"
+        )
+    ) +
+    theme_minimal()
 ```
 
-The red reference lines represent the adjusted estimates obtained from the original analytic cohort.
+The bootstrap distributions illustrate the variability of the adjusted association measures across resampled analytic cohorts.
 
-The bootstrap distributions illustrate how these estimates vary across resamples. The risk ratio and risk difference may exhibit different distributional shapes because they represent relative and absolute measures of association, respectively.
+The adjusted risk ratio and risk difference may exhibit different distributional shapes because they summarize associations on different scales. In particular, the risk ratio involves division by the standardized hospitalization proportion in the unexposed scenario, which can produce a more asymmetric distribution when that denominator varies across resamples.
 
 ### Bootstrap Confidence Intervals
 
-The standard deviation of the bootstrap estimates provides an empirical estimate of the standard error.
+The standard deviation of each bootstrap distribution was used to estimate the corresponding bootstrap standard error.
 
-The 95% percentile bootstrap confidence intervals are constructed using the 2.5th and 97.5th percentiles of each distribution.
+A 95% percentile bootstrap confidence interval was constructed using the 2.5th and 97.5th percentiles of the successful bootstrap estimates:
+
+$$
+CI_{95\%}(\hat{\theta})
+=
+\left[
+Q_{0.025}(\hat{\theta}^{*}),
+Q_{0.975}(\hat{\theta}^{*})
+\right],
+$$
+
+where $\hat{\theta}^{*}$ represents the bootstrap estimates of the adjusted risk ratio or risk difference.
+
+The original regression-standardized estimates were retained as the primary point estimates, while the bootstrap distributions were used to quantify their uncertainty.
 
 ```{r}
-# Bootstrap standard errors
+# Calculate bootstrap standard errors
 se_rr <- sd(valid_rr)
 se_rd <- sd(valid_rd)
 
-# Percentile confidence intervals
+# Calculate 95% percentile bootstrap confidence intervals
 ci_rr <- quantile(
     valid_rr,
     probs = c(0.025, 0.975)
@@ -1470,41 +2274,67 @@ ci_rd <- quantile(
     probs = c(0.025, 0.975)
 )
 
-# Summary table
+# Calculate bootstrap means
+mean_rr <- mean(valid_rr)
+mean_rd <- mean(valid_rd)
+
+# Construct formatted results table
 bootstrap_results <- data.frame(
-    Measure = c(
-        "Adjusted Risk Ratio",
-        "Adjusted Risk Difference"
+    `Measure` = c(
+        "Adjusted RR",
+        "Adjusted RD",
+        "Adjusted RD (pp)"
     ),
-    Original_Estimate = c(
-        adjusted_rr,
-        adjusted_rd
+    `Original Estimate` = c(
+        sprintf("%.3f", adjusted_rr),
+        sprintf("%.4f", adjusted_rd),
+        sprintf("%.2f", adjusted_rd * 100)
     ),
-    Bootstrap_Mean = c(
-        mean(valid_rr),
-        mean(valid_rd)
+    `Bootstrap Mean` = c(
+        sprintf("%.3f", mean_rr),
+        sprintf("%.4f", mean_rd),
+        sprintf("%.2f", mean_rd * 100)
     ),
-    Bootstrap_SE = c(
-        se_rr,
-        se_rd
+    `Bootstrap SE` = c(
+        sprintf("%.3f", se_rr),
+        sprintf("%.4f", se_rd),
+        sprintf("%.2f", se_rd * 100)
     ),
-    CI_Lower = c(
-        ci_rr[1],
-        ci_rd[1]
+    `95% CI Lower` = c(
+        sprintf("%.3f", ci_rr[1]),
+        sprintf("%.4f", ci_rd[1]),
+        sprintf("%.2f", ci_rd[1] * 100)
     ),
-    CI_Upper = c(
-        ci_rr[2],
-        ci_rd[2]
-    )
+    `95% CI Upper` = c(
+        sprintf("%.3f", ci_rr[2]),
+        sprintf("%.4f", ci_rd[2]),
+        sprintf("%.2f", ci_rd[2] * 100)
+    ),
+    check.names = FALSE
 )
+
+cat("Bootstrap Inference for Regression-Standardized Measures\n")
 
 knitr::kable(
     bootstrap_results,
-    digits = 4,
-    caption = "Bootstrap inference for regression-standardized measures"
+    caption = "Bootstrap Inference for Regression-Standardized Measures",
+    align = c("l", rep("r", ncol(bootstrap_results) - 1)),
+    booktabs = TRUE,
+    row.names = FALSE
 )
 ```
 
-The regression-standardized adjusted risk ratio was `r round(adjusted_rr, 3)` (95% percentile bootstrap CI: `r round(ci_rr[1], 2)`--`r round(ci_rr[2], 2)`), indicating a positive adjusted association between reported pre-existing medical conditions and hospitalization.
+The regression-standardized adjusted risk ratio was `r sprintf("%.2f", adjusted_rr)` (95% percentile bootstrap CI: `r sprintf("%.2f", ci_rr[1])`--`r sprintf("%.2f", ci_rr[2])`). This indicates a positive adjusted association between reported pre-existing medical conditions and hospitalization.
 
-The adjusted risk difference was `r round(adjusted_rd * 100, 1)` percentage points (95% percentile bootstrap CI: `r round(ci_rd[1] * 100, 1)`--`r round(ci_rd[2] * 100, 1)` percentage points).
+The adjusted risk difference was `r sprintf("%.2f", adjusted_rd * 100)` percentage points (95% percentile bootstrap CI: `r sprintf("%.2f", ci_rd[1] * 100)`--`r sprintf("%.2f", ci_rd[2] * 100)` percentage points).
+
+Both confidence intervals were derived from the empirical distributions of the regression-standardized estimates. They quantify uncertainty under the assumed case-level resampling procedure.
+
+
+# Conclusion
+
+This analysis examined the association between reported pre-existing medical conditions and hospitalization among early-pandemic COVID-19 cases using a sample of CDC surveillance data from March 15 through December 10, 2020. Among cases with known exposure and hospitalization status, reported pre-existing medical conditions were associated with a substantially higher proportion of hospitalization. The crude risk ratio was `r sprintf("%.2f", risk_ratio)` (95% CI: `r sprintf("%.2f", rr_lower)`--`r sprintf("%.2f", rr_upper)`), with an absolute risk difference of `r sprintf("%.1f", risk_difference * 100)` percentage points.
+
+Adjustment for age and sex reduced the estimated magnitude of the association. Regression standardization produced an adjusted risk ratio of `r sprintf("%.2f", adjusted_rr)` (95% percentile bootstrap CI: `r sprintf("%.2f", ci_rr[1])`--`r sprintf("%.2f", ci_rr[2])`) and an adjusted risk difference of `r sprintf("%.1f", adjusted_rd * 100)` percentage points (95% percentile bootstrap CI: `r sprintf("%.1f", ci_rd[1] * 100)`--`r sprintf("%.1f", ci_rd[2] * 100)` percentage points). The difference between the crude and adjusted estimates illustrates the importance of accounting for potential confounders. These were identified as age and sex variables in the dataset.
+
+Several limitations restrict the interpretation and generalizability of these findings. Only `r sprintf("%.2f", known_both)`% of the original surveillance sample had known medical-condition and hospitalization status, which could influence selection bias from complete-case analysis. Additionally, the original sample was constructed using randomly selected reporting dates and contiguous record blocks rather than simple random sampling, limiting its representativeness. The regression model adjusted for age and sex but could not account for other potential confounders, and the bootstrap confidence intervals reflect uncertainty under independent case-level resampling rather than the original sampling design. Consequently, the results should not be generalized to all reported COVID-19 cases or interpreted as population-level hospitalization risks.

@@ -1,6 +1,6 @@
 # Early-Pandemic COVID-19 Epidemiologic Analysis
 
-This repository contains an epidemiologic study examining the association between reported pre-existing medical conditions and hospitalization among reported COVID-19 cases during the early pre-vaccine period (March 15–December 10, 2020).
+This repository contains an epidemiologic study examining the association between reported pre-existing medical conditions and hospitalization among reported COVID-19 cases during the early pre-vaccine period (March 15--December 10, 2020).
 
 I come from a computer science background, where I work with large datasets and predictive models. My prior work typically prioritizes predictive performance before fully considering the processes that generated the dataset used. This project deliberately inverts that framework as I move further into the interdisciplinary space between computation and classical epidemiology.
 
